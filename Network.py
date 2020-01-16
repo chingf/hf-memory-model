@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.integrate import odeint
 
 class Network():
     """
@@ -45,8 +46,11 @@ class Network():
         next_x = []
         for i in range(self.N):
             x_i = self.x[i]
-            dx_i = self.get_dx(i)
-            next_x.append(x_i + dx_i)
+            phi_x = self.get_activity()
+            input_to_unit = np.dot(self.J[i,:], phi_x)
+            dxdt = lambda x_i, t: -x_i + input_to_unit
+            next_x_i = odeint(dxdt, x_i, [0,1]) 
+            next_x.append(next_x_i[1,0])
         self.x = np.array(next_x)
 
     def get_dx(self, i):
