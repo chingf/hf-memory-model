@@ -1,88 +1,116 @@
 import numpy as np
-from scipy.integrate import odeint
+from math import pi
 
 class Network():
     """
-    A recurrently connected network
+    A ring attractor network as described by Ben-Yishai & Sompolinsky (1994).
+
+    In this model, one timestep corresponds to 100 ms. Wherever possible,
+    variable notation corresponds with the notation used in the original paper.
 
     Args:
-        N: Integer count of units in the network.
-        g: Positive float; the network gain
+        N (int): Number of units in the network. Their preferred tuning evenly
+           covers the ring
 
     Attributes:
-        g: Positive float; the network gain
-        N: Integer count of units in the network
-        x: (N,) Numpy array. The ith element is the current electrical activity
-            of the ith unit. This may be subthreshold.
-        J: (N,N) Numpy array. The synaptic weights between units. J_ij is the
-            weight from j into i.
+        base_J0 (float): parameter representing uniform all-to-all inhibition.
+        base_J2 (float): parameter representing amplitude of angle-specific
+            interaction.
+        dt (float): parameter representing the size of one timestep.
+        J0 (float): parameter base_J0 normalized for the number of units.
+        J2 (float): parameter base_J2 normalized for the number of units.
+        N (int): integer number of units in the network. Thus unit i will
+            represent neurons with preferred tuning at 2pi/i radians.
+        J (numpy array): (N, N) array of floats representing the connectivity
+            between units. V_ij will represent the connection from j to i.
+        thetas (numpy array): (N,) array of float radians. The value at i
+            represents the preferred tuning of unit i: 2pi/i
     """
 
-    def __init__(self, g, N):
-        self.g = g
+    base_J0 = 0.3 
+    base_J2 = 4.5
+    dt = 0.1
+
+    def __init__(self, N):
         self.N = N
-        self._init_activity()
-        self._init_synaptic_weights()
+        self.J0 = self.base_J0/N
+        self.J2 = self.base_J2/N
+        self.thetas = np.linspace(0, 2*pi, N)
+        self._init_J()
 
-    def get_activity(self):
+    def simulate(self, input, alphas=None):
         """
-        Returns the current network activity, phi(x)
-        """
+        Simulates the behavior of the ring attractor over some period of time.
+    
+        Args:
+            input (numpy array): Size (T,) array of float radians representing
+                the external stimulus. Here, the stimulus is some external cue
+                that indicates what the correct orientation theta_0 is.
+            alphas (numpy array): Size (T,) array of float representing the
+                strength of the external input. Optional.
 
-        r0 = 0.1
-        x_leq0 = np.where(self.x <= 0) # Indices where x <= 0
-        x_g0 = np.where(self.x > 0) # Indices where x > 0
-        phi_x = self.x.copy()
-        phi_x[x_leq0] = r0*np.tanh(self.x[x_leq0]/r0)
-        phi_x[x_g0] = (2-r0)*np.tanh(self.x[x_g0]/(2-r0))
-        return phi_x
-
-    def step(self):
-        """
-        Simulates the network for one time step. Evolves the current network
-        activity according to the defined first-order dynamics.
-        """
-
-        next_x = []
-        for i in range(self.N):
-            x_i = self.x[i]
-            phi_x = self.get_activity()
-            input_to_unit = np.dot(self.J[i,:], phi_x)
-            dxdt = lambda x_i, t: -x_i + input_to_unit
-            next_x_i = odeint(dxdt, x_i, [0,1]) 
-            next_x.append(next_x_i[1,0])
-        self.x = np.array(next_x)
-
-    def get_dx(self, i):
-        """
-        Calculates dx_i/dt. A unit of t is 10 ms
-
-        Args
-            i: Integer indexing into units.
         Returns:
-            The change in x_i over time, where x_i is the activity of the ith
-            unit.
+            m (numpy array): Size (N,T) array of floats representing current
+                of each unit at each time step
+            f (numpy array): Size (N,T) array of floats representing firing
+                rate of each unit at each time step.
+
+        Raises:
+            ValueError: If alphas is provided but is not the same size as input.
+        """
+ 
+        if (alphas is not None) and (input.size != alphas.size):
+            raise ValueError(
+                "If alphas is provided, it should be the same size as input."
+                )
+        T = input.size
+        m = np.zeros((self.N, T)) # Current
+        f = np.zeros((self.N, T)) # Firing rate
+        m0 = 0.1*np.random.normal(0, 1, self.N)
+        for t in range(T):
+            alpha_t = 0 if alphas is None else alphas[t]
+            if t == 0:
+                m_t, f_t = self._step(m0, input[t], alpha_t)
+            else:
+                m_t, f_t = self._step(m[:, t-1], input[t], alpha_t)
+            m[:,t] = m_t
+            f[:,t] = f_t
+        return m, f
+
+    def _step(self, prev_m, input_t, alpha_t):
+        """
+        Steps the network forward one time step. Evolves the current network
+        activity according to the defined first-order dynamics.
+
+        Args:
+            prev_m (numpy array): (N,) size array of floats; the current
+            input_t (float): Radian representing the external stimulus.
+            alpha_t (float): The strength of the external stimulus
+
+        Returns:
+            m_{t} and f_{t}: numpy arrays representing the current and the
+                firing rates, respectively, of each unit in the next time step.
         """
 
-        r0 = 0.1
-        phi_x = self.get_activity()
-        input_to_unit = np.dot(self.J[i,:], phi_x)
-        return -self.x[i] + input_to_unit
+        h_ext = alpha_t*np.cos(input_t - self.thetas)
+        f_t = self.J @ prev_m + h_ext
+        dmdt = -prev_m + self._g(f_t)
+        m_t = prev_m + self.dt*dmdt #TODO: see how this changes with odeint
+        return m_t, f_t
 
-    def _init_activity(self):
+    def _g(self, f_t):
         """
-        Populates an array with randomly initialized unit activity
-        """
-
-        self.x = np.random.normal(0, 5, self.N)
-
-    def _init_synaptic_weights(self):
-        """
-        Initialize synaptic weights. There are no self weights. For each i,j
-        where i != j, J_ij ~ Normal(0, 1/N)
+        Rectifies and saturates a given firing rate.
         """
 
-        J_std = np.sqrt((self.g**2)/self.N)
-        self.J = np.random.normal(0, J_std, (self.N, self.N))
-        for n in range(self.N):
-            self.J[n,n] = 0.
+        return np.clip(f_t, 0, 1)
+
+    def _init_J(self):
+        """
+        Initializes the connectivity matrix J
+        """
+
+        J = np.zeros((self.N,self.N))
+        for i in range(self.N):
+            J[i,:]= -self.J0 + self.J2*np.cos(self.thetas[i] - self.thetas)
+        self.J = J
