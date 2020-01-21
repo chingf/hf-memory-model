@@ -1,5 +1,7 @@
+import pdb
 import numpy as np
 from math import pi
+import matplotlib.pyplot as plt
 
 class RingNetwork(object):
     """
@@ -203,16 +205,18 @@ class SimpleMixedNetwork(RingNetwork):
         T = input.size
         m = np.zeros((self.N, T)) # Current
         f = np.zeros((self.N, T)) # Firing rate
+        dmdt = np.zeros((self.N, T))
         m0 = 0.1*np.random.normal(0, 1, self.N)
         for t in range(T):
             alpha_t = 0 if alphas is None else alphas[t]
             if t == 0:
-                m_t, f_t = self._step(m0, input[t], input_c[t], alpha_t)
+                m_t, f_t, dmdt_t = self._step(m0, input[t], input_c[t], alpha_t)
             else:
-                m_t, f_t = self._step(m[:, t-1], input[t], input_c[t], alpha_t)
+                m_t, f_t, dmdt_t = self._step(m[:, t-1], input[t], input_c[t], alpha_t)
             m[:,t] = m_t
             f[:,t] = f_t
-        return m, f
+            dmdt[:,t] = dmdt_t
+        return m, f, dmdt
 
     def _step(self, prev_m, input_t, input_c_t, alpha_t):
         """
@@ -235,10 +239,14 @@ class SimpleMixedNetwork(RingNetwork):
         f_t = self.J @ prev_m + h_ext
         c_offset = np.zeros(self.N)
         c_offset[self.ring_indices] = input_c_t
+        for i in range(2):
+            c_offset[self.ring_indices + i + 1] = input_c_t
+            c_offset[self.ring_indices - i - 1] = input_c_t
         c_offset *= self.C
-        dmdt = -prev_m + self._g(f_t + c_offset)
+        f_t += c_offset
+        dmdt = -prev_m + self._g(f_t)
         m_t = prev_m + self.dt*dmdt
-        return m_t, f_t
+        return m_t, f_t, dmdt
 
 class MixedNetwork(SimpleMixedNetwork):
     """
@@ -340,49 +348,22 @@ class MixedNetwork(SimpleMixedNetwork):
             cr_input_c_t = np.tile(input_c_t, (self.N_cr,1)).T.flatten()
             cr_units = self.ring_indices.flatten()
             cr_f_t = self.J[cr_units,:] @ prev_m + h_ext[cr_units]
-            cr_dmdt = -prev_m[cr_units]  + self._g(cr_f_t) + cr_input_c_t*self.C
+            cr_dmdt = -prev_m[cr_units] + self._g(cr_f_t + cr_input_c_t*self.C)
             cr_m_t = prev_m[cr_units] + self.dt*cr_dmdt
             prev_m[cr_units] = cr_m_t
 
         # Then, activate the rest of the units
+        f_t = self.J @ prev_m + h_ext
         if np.sum(input_c_t) > 0:
-            f_t = self.J_c @ prev_m + h_ext
             Jcr_offset = np.zeros(f_t.size)
-#            for idx, cr_connections in enumerate(self.ring_indices):
-#                target_index = self.target_indices[idx]
-#                Jcr_offset[target_index] = input_c_t[idx]*cr_connections.size*self.J_cr
-            dmdt = -prev_m + self._g(f_t) + Jcr_offset
-        else:
-            f_t = self.J @ prev_m + h_ext
-            dmdt = -prev_m + self._g(f_t)
+            for idx, cr_connections in enumerate(self.ring_indices):
+                target_index = self.target_indices[idx]
+                offset_val = input_c_t[idx]*cr_connections.size*self.J_cr
+                Jcr_offset[target_index] = offset_val 
+                for i in range(2):
+                    Jcr_offset[target_index + i + 1] = offset_val
+                    Jcr_offset[target_index - i - 1] = offset_val
+            f_t += Jcr_offset
+        dmdt = -prev_m + self._g(f_t)
         m_t = prev_m + self.dt*dmdt
-        return m_t, f_t
-
-#        # All in one step
-#        h_ext = alpha_t*np.cos(input_t - self.thetas)
-#        if np.sum(input_c_t) > 0:
-#            f_t = self.J_c @ prev_m + h_ext
-#        else:
-#            f_t = self.J @ prev_m + h_ext
-#        c_offset = np.zeros(self.N)
-#        for c_idx in range(input_c_t.size):
-#            c_offset[self.ring_indices[c_idx,:]] = input_c_t[c_idx]
-#        c_offset *= self.C
-#        dmdt = -prev_m + self._g(f_t) + c_offset
-#        m_t = prev_m + self.dt*dmdt
-#        return m_t, f_t
-
-    def _init_J(self):
-        """
-        Initializes the connectivity matrix J
-        """
-
-        J = np.zeros((self.N,self.N))
-        for i in range(self.N):
-            J[i,:]= -self.J0 + self.J2*np.cos(self.thetas[i] - self.thetas)
-        J_c = J.copy()
-        for idx, cr_connections in enumerate(self.ring_indices):
-            target_index = self.target_indices[idx]
-            J_c[target_index, cr_connections] = self.J_cr
-        self.J = J
-        self.J_c = J_c
+        return m_t, f_t, dmdt
