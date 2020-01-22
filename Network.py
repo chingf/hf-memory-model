@@ -367,3 +367,108 @@ class MixedNetwork(SimpleMixedNetwork):
         dmdt = -prev_m + self._g(f_t)
         m_t = prev_m + self.dt*dmdt
         return m_t, f_t, dmdt
+
+class PlasticMixedNetwork(MixedNetwork):
+    """
+    A ring attractor network with context units external to the main network.
+    A context unit synapses onto multiple ring units. During a context mode,
+    these ring units synapse onto a target unit with some strength.
+
+    In this model, one timestep corresponds to 100 ms. 
+
+    Args:
+        N (int): Number of units in the network. Their preferred tuning evenly
+           covers the ring
+        N_c (int): Number of context units.
+        C (float): parameter for the constant gain added to the dmdt for a
+            ring unit when its connected context unit is activated.
+        N_cr (int): Number of ring units that a single context unit synapses
+            onto.
+        J_cr (float): parameter; the synaptic strength from ring unit to target
+            unit during context mode
+        target_indices (numpy array): Optional; size (N_c,) array containing the
+            indices of the target units. If not provided, they will be randomly
+            drawn.
+
+    Attributes:
+        base_J0 (float): parameter representing uniform all-to-all inhibition.
+        base_J2 (float): parameter representing amplitude of angle-specific
+            interaction.
+        dt (float): parameter representing the size of one timestep.
+        J0 (float): parameter base_J0 normalized for the number of units.
+        J2 (float): parameter base_J2 normalized for the number of units.
+        N (int): integer number of units in the network. Thus unit i will
+            represent neurons with preferred tuning at 2pi/i radians.
+        N_c (int): Number of external context units.
+        C (float): parameter for the constant gain added to dmdt during the
+            context mode.
+        N_cr (int): Number of ring units that a single context unit synapses
+            onto.
+        J_cr (float): parameter; the synaptic strength from ring unit to target
+            unit during context mode
+        J (numpy array): (N, N) array of floats representing the connectivity
+            between units. V_ij will represent the connection from j to i.
+        J_c (numpy array): (N, N) array of floats representing the connectivity
+            between units during context mode. V_ij will represent the
+            connection from j to i.
+        thetas (numpy array): (N,) array of float radians. The value at i
+            represents the preferred tuning of unit i: 2pi/i
+        ring_indices (numpy array): (N_c, N_cr) array containing the indices of
+            the ring units that the context units synapse onto.
+        target_indices (numpy array): (N_c,) array containing the
+            indices of the target units.
+
+    Raises:
+        ValueError: If target_indices.size != N_c
+    """
+
+    def _step(self, prev_m, input_t, input_c_t, alpha_t):
+        """
+        Steps the network forward one time step. Evolves the current network
+        activity according to the defined first-order dynamics.
+
+        Args:
+            prev_m (numpy array): (N,) size array of floats; the current
+            input_t (float): Radian representing the external stimulus.
+            input_c_t (numpy array): (N_c,) size array of floats; the activation
+                of context units at this time step.
+            alpha_t (float): The strength of the external stimulus
+
+        Returns:
+            m_{t} and f_{t}: numpy arrays representing the current and the
+                firing rates, respectively, of each unit in the next time step.
+        """
+
+
+        h_ext = alpha_t*np.cos(input_t - self.thetas)
+
+        # Activate context to ring units first
+        if np.sum(input_c_t) > 0:
+            cr_input_c_t = np.tile(input_c_t, (self.N_cr,1)).T.flatten()
+            cr_units = self.ring_indices.flatten()
+            cr_f_t = self.J[cr_units,:] @ prev_m + h_ext[cr_units]
+            cr_dmdt = -prev_m[cr_units] + self._g(cr_f_t + cr_input_c_t*self.C)
+            cr_m_t = prev_m[cr_units] + self.dt*cr_dmdt
+            prev_m[cr_units] = cr_m_t
+
+        # Then, activate the rest of the units
+        f_t = self.J @ prev_m + h_ext
+        dmdt = -prev_m + self._g(f_t)
+        m_t = prev_m + self.dt*dmdt
+        return m_t, f_t, dmdt
+
+    def _init_J(self):
+        """
+        Initializes the connectivity matrix J
+        """
+
+        J = np.zeros((self.N,self.N))
+        for i in range(self.N):
+            J[i,:]= -self.J0 + self.J2*np.cos(self.thetas[i] - self.thetas)
+        for idx, cr_connections in enumerate(self.ring_indices):
+            target_index = self.target_indices[idx]
+            J[target_index, cr_connections] += self.J_cr
+            for i in range(2):
+                J[target_index + i + 1, cr_connections] += self.J_cr
+                J[target_index - i - 1, cr_connections] += self.J_cr
+        self.J = J
