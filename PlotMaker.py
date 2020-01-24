@@ -4,18 +4,21 @@ import matplotlib.colors as mcolors
 import matplotlib.gridspec as gridspec
 from matplotlib.widgets import Slider, Button, CheckButtons
 from math import pi
+from InputGenerator import InputGenerator
 from Network import PlasticMixedNetwork
 
 class PlotMaker(object):
     """Makes plots to visualize a ring network."""
 
-    def plot_main(self, input, alphas, f, input_c=None, target_indices=None):
+    def plot_main(
+            self, input_ext, alphas, f, input_c=None, target_indices=None, m=None
+            ):
         """
         Plots the basic visualization needed: animal location, input/context
         strength, network activity.
 
         Args:
-            input (numpy array): Size (T,) array of float radians representing
+            input_ext (numpy array): Size (T,) array of float radians representing
                 the external stimulus. Here, the stimulus is some external cue
                 that indicates what the correct orientation theta_0 is.
             alphas (numpy array): Size (T,) array of float representing the
@@ -28,15 +31,17 @@ class PlotMaker(object):
                 indices of the target units.
         """
 
+        width = 15
+        height = 7 if m is None else 10
         fig = plt.figure(1)
-        self._make_main_grid(input, alphas, f, input_c, target_indices)
+        self._make_main_grid(input_ext, alphas, f, input_c, target_indices, m)
         fig.tight_layout()
-        fig.set_size_inches(w=15, h=7)
+        fig.set_size_inches(w=width, h=height)
         plt.show()
 
     def plot_slider(
-            self, C_max=15, Ncr_max=50, Jcr_max=1.5,
-            C_init=1, Ncr_init=40, Jcr_init=0.06
+            self, C_max=15, Ncr_max=50, Jcr_max=0.2,
+            C_init=1, Ncr_init=40, Jcr_init=0.01
             ):
         """
         Makes the main 3-chunk plot with sliders to change PlasticMixedNetwork
@@ -59,15 +64,17 @@ class PlotMaker(object):
         N = 100
         N_c = 2
         target_indices = np.array([N//2, 0])
-        T = 1000
-        input, input_c, alphas = self._get_input(T, N_c)
+        T = 1250
+        input_ext, input_c, alphas = InputGenerator().get_input(T, N_c)
 
         # Initialize graph
         network = PlasticMixedNetwork(
             N, N_c, C_init, Ncr_init, Jcr_init, target_indices
             )
-        m, f, dmdt = network.simulate(input, input_c, alphas)
-        aximg = self._make_main_grid(input, alphas, f, input_c, target_indices)
+        m, f, dmdt = network.simulate(input_ext, input_c, alphas)
+        aximg = self._make_main_grid(
+            input_ext, alphas, f, input_c, target_indices/N
+            )
         self.view_avg = False
 
         # Define parameter sliders 
@@ -77,7 +84,7 @@ class PlotMaker(object):
         axJcr = plt.axes([0.15, 0.1, 0.65, 0.03], facecolor=axcolor)
         sC = Slider(axC, "C", 0, C_max, valinit=C_init, valstep=0.1)
         sNcr = Slider(axNcr, "N_cr", 2, Ncr_max, valinit=Ncr_init, valstep=2)
-        sJcr = Slider(axJcr, "J_cr", 0, Jcr_max, valinit=Jcr_init, valstep=0.02)
+        sJcr = Slider(axJcr, "J_cr", 0, Jcr_max, valinit=Jcr_init, valstep=0.005)
         def update(val):
             C = sC.val
             Ncr = int(sNcr.val)
@@ -88,7 +95,7 @@ class PlotMaker(object):
                 network = PlasticMixedNetwork(
                     N, N_c, C, Ncr, Jcr, target_indices
                     )
-                _, _f, _ = network.simulate(input, input_c, alphas)
+                _, _f, _ = network.simulate(input_ext, input_c, alphas)
                 f += _f
             f /= num_reps
             aximg.set_data(np.flip(f, axis=0))
@@ -126,39 +133,15 @@ class PlotMaker(object):
 
         plt.show()
 
-    def _get_input(self, T, N_c):
-        """
-        Helper method that returns the general toy input used.
-
-        Args:
-            T (int): Number of time steps
-            N_c (int): Number of context units
-        """
-
-        input = np.concatenate([
-            np.linspace(0, 2*pi, T//5),
-            np.linspace(2*pi, 0, T//5),
-            np.linspace(0, 0, T//5),
-            np.linspace(0, 0, T//5),
-            np.linspace(0, 2*pi, T//5)
-            ])
-        alphas = np.ones(input.size)*0.6
-        input_c = np.zeros((input.size, N_c))
-        alphas[500:1000,] = 0
-        input_c = np.zeros((input.size, N_c))
-        input_c[650:800, 0] = 1
-        input_c[850:, 1] = 1
-        return input, input_c, alphas
-
     def _make_main_grid(
-            self, input, alphas, f, input_c=None, target_indices=None
+            self, input_ext, alphas, f, input_c=None, target_indices=None, m=None
             ):
         """
         Fills the current PyPlot object with the basic visualization needed:
         animal location, input/context strength, network activity.
 
         Args:
-            input (numpy array): Size (T,) array of float radians representing
+            input_ext (numpy array): Size (T,) array of float radians representing
                 the external stimulus. Here, the stimulus is some external cue
                 that indicates what the correct orientation theta_0 is.
             alphas (numpy array): Size (T,) array of float representing the
@@ -168,20 +151,23 @@ class PlotMaker(object):
             input_c (numpy array): Size (T, N_c) array of floats representing
                 the activation of context units over time.
             target_indices (numpy array): size (N_c,) array containing the
-                indices of the target units.
+                normalized indices of the target units. e.g., index 0.5
+                corresponds to pi
         """
 
         alphas = np.tile(alphas, (50,1))
-        T = input.size
-        gridspec.GridSpec(9,1)
+        T = input_ext.size
+        gridrows = 9 if m is None else 13
+        gridcols = 1
+        gridspec.GridSpec(gridrows, gridcols)
 
         # Plot location 
-        plt.subplot2grid((9,1), (0,0), rowspan=4)
-        plt.plot(np.arange(T), input, linewidth=2)
+        plt.subplot2grid((gridrows, gridcols), (0,0), rowspan=4)
+        plt.plot(np.arange(T), input_ext, linewidth=2)
         if (input_c is not None) and (target_indices is not None):
             for c_idx, activity_c in enumerate(input_c.T): # Iterate over context
                 on_time = np.where(activity_c > 0)
-                target_index = input[target_indices[c_idx]]
+                target_index = target_indices[c_idx]*2*pi
                 plt.axhline(
                     target_index, np.min(on_time)/T, np.max(on_time)/T,
                     linewidth=4, color="red"
@@ -194,24 +180,38 @@ class PlotMaker(object):
         plt.title("Activity over Time", fontsize=16)
    
         # Plot input strength
-        plt.subplot2grid((9,1), (4,0))
+        plt.subplot2grid((gridrows, gridcols), (4,0))
         plt.imshow(alphas, aspect='auto')
         plt.yticks([])
         plt.xticks([])
         plt.ylabel("Input\nStrength\n\n", fontsize=14)
        
-        # Plot network activity
-        plt.subplot2grid((9,1), (5,0), rowspan=4)
+        # Plot network firing rate activity
+        plt.subplot2grid((gridrows, gridcols), (5,0), rowspan=4)
         norm = mcolors.DivergingNorm(vmin=f.min(), vmax = f.max(), vcenter=0)
         aximg = plt.imshow(
             np.flip(f, axis=0), cmap=plt.cm.coolwarm, norm=norm, aspect='auto'
             )
+        plt.yticks(
+            [0, f.shape[0]//2, f.shape[0] - 1], ["0", "Pi", "2Pi"]
+            )
+        plt.ylabel("f_\u03B8", fontsize=14)
+
+        # Plot network current activity if it was provided
+        if m is not None:
+            plt.subplot2grid((gridrows, gridcols), (9,0), rowspan=4)
+            norm = mcolors.DivergingNorm(vmin=f.min(), vmax = f.max(), vcenter=0)
+            plt.imshow(
+                np.flip(m, axis=0), cmap=plt.cm.coolwarm, norm=norm, aspect='auto'
+                )
+            plt.yticks(
+                [0, m.shape[0]//2, m.shape[0] - 1], ["0", "Pi", "2Pi"]
+                )
+            plt.ylabel("m_\u03B8", fontsize=14)
+
+        # Plots the seconds on the x axis of the last subplot
         plt.xticks(
             np.arange(0, T, 100), np.arange(0, T//10, 10)
             )
         plt.xlabel("Seconds")
-        plt.yticks(
-            [0, f.shape[0]//2, f.shape[0] - 1], ["0", "Pi", "2Pi"]
-            )
-        plt.ylabel("m_\u03B8", fontsize=14)
         return aximg

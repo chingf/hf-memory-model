@@ -40,12 +40,12 @@ class RingNetwork(object):
         self.thetas = np.linspace(0, 2*pi, N)
         self._init_J()
 
-    def simulate(self, input, alphas=None):
+    def simulate(self, input_ext, alphas=None):
         """
         Simulates the behavior of the ring attractor over some period of time.
     
         Args:
-            input (numpy array): Size (T,) array of float radians representing
+            input_ext (numpy array): Size (T,) array of float radians representing
                 the external stimulus. Here, the stimulus is some external cue
                 that indicates what the correct orientation theta_0 is.
             alphas (numpy array): Size (T,) array of float representing the
@@ -61,20 +61,20 @@ class RingNetwork(object):
             ValueError: If alphas is provided but is not the same size as input.
         """
  
-        if (alphas is not None) and (input.size != alphas.size):
+        if (alphas is not None) and (input_ext.size != alphas.size):
             raise ValueError(
                 "If alphas is provided, it should be the same size as input."
                 )
-        T = input.size
+        T = input_ext.size
         m = np.zeros((self.N, T)) # Current
         f = np.zeros((self.N, T)) # Firing rate
         m0 = 0.1*np.random.normal(0, 1, self.N)
         for t in range(T):
             alpha_t = 0 if alphas is None else alphas[t]
             if t == 0:
-                m_t, f_t = self._step(m0, input[t], alpha_t)
+                m_t, f_t = self._step(m0, input_ext[t], alpha_t)
             else:
-                m_t, f_t = self._step(m[:, t-1], input[t], alpha_t)
+                m_t, f_t = self._step(m[:, t-1], input_ext[t], alpha_t)
             m[:,t] = m_t
             f[:,t] = f_t
         return m, f
@@ -175,12 +175,12 @@ class SimpleMixedNetwork(RingNetwork):
             self.ring_indices = ring_indices
         self._init_J()
 
-    def simulate(self, input, input_c, alphas=None):
+    def simulate(self, input_ext, input_c, alphas=None):
         """
         Simulates the behavior of the ring attractor over some period of time.
     
         Args:
-            input (numpy array): Size (T,) array of float radians representing
+            input_ext (numpy array): Size (T,) array of float radians representing
                 the external stimulus. Here, the stimulus is some external cue
                 that indicates what the correct orientation theta_0 is.
             input_c (numpy array): Size (T, N_c) array of floats representing
@@ -198,11 +198,11 @@ class SimpleMixedNetwork(RingNetwork):
             ValueError: If alphas is provided but is not the same size as input.
         """
  
-        if (alphas is not None) and (input.size != alphas.size):
+        if (alphas is not None) and (input_ext.size != alphas.size):
             raise ValueError(
                 "If alphas is provided, it should be the same size as input."
                 )
-        T = input.size
+        T = input_ext.size
         m = np.zeros((self.N, T)) # Current
         f = np.zeros((self.N, T)) # Firing rate
         dmdt = np.zeros((self.N, T))
@@ -210,15 +210,19 @@ class SimpleMixedNetwork(RingNetwork):
         for t in range(T):
             alpha_t = 0 if alphas is None else alphas[t]
             if t == 0:
-                m_t, f_t, dmdt_t = self._step(m0, input[t], input_c[t], alpha_t)
+                m_t, f_t, dmdt_t = self._step(
+                    m0, input_ext[t], input_c[t], alpha_t
+                    )
             else:
-                m_t, f_t, dmdt_t = self._step(m[:, t-1], input[t], input_c[t], alpha_t)
+                m_t, f_t, dmdt_t = self._step(
+                    m[:, t-1], input_ext[t], input_c[t], alpha_t
+                    )
             m[:,t] = m_t
             f[:,t] = f_t
             dmdt[:,t] = dmdt_t
         return m, f, dmdt
 
-    def _step(self, prev_m, input_t, input_c_t, alpha_t):
+    def _step(self, prev_m, input_ext_t, input_c_t, alpha_t):
         """
         Steps the network forward one time step. Evolves the current network
         activity according to the defined first-order dynamics.
@@ -235,7 +239,7 @@ class SimpleMixedNetwork(RingNetwork):
                 firing rates, respectively, of each unit in the next time step.
         """
 
-        h_ext = alpha_t*np.cos(input_t - self.thetas)
+        h_ext = alpha_t*np.cos(input_ext_t - self.thetas)
         f_t = self.J @ prev_m + h_ext
         c_offset = np.zeros(self.N)
         c_offset[self.ring_indices] = input_c_t
