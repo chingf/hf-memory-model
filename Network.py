@@ -30,7 +30,7 @@ class RingNetwork(object):
     """
 
     base_J0 = 0.3 
-    base_J2 = 4.
+    base_J2 = 4.0
     dt = 0.1
 
     def __init__(self, N):
@@ -95,8 +95,8 @@ class RingNetwork(object):
         """
 
         h_ext = alpha_t*np.cos(input_t - self.thetas)
-        f_t = self.J @ prev_m + h_ext
-        dmdt = -prev_m + self._g(f_t)
+        f_t = self.J @ self._g(prev_m) + self._g(h_ext)
+        dmdt = -prev_m + f_t
         m_t = prev_m + self.dt*dmdt #TODO: see how this changes with odeint
         return m_t, f_t
 
@@ -240,15 +240,15 @@ class SimpleMixedNetwork(RingNetwork):
         """
 
         h_ext = alpha_t*np.cos(input_ext_t - self.thetas)
-        f_t = self.J @ prev_m + h_ext
+        f_t = self.J @ self._g(prev_m) + self._g(h_ext)
         c_offset = np.zeros(self.N)
         c_offset[self.ring_indices] = input_c_t
-        for i in range(2):
+        for i in range(1):
             c_offset[self.ring_indices + i + 1] = input_c_t
             c_offset[self.ring_indices - i - 1] = input_c_t
         c_offset *= self.C
-        f_t += c_offset
-        dmdt = -prev_m + self._g(f_t)
+        f_t += self._g(c_offset)
+        dmdt = -prev_m + f_t
         m_t = prev_m + self.dt*dmdt
         return m_t, f_t, dmdt
 
@@ -351,13 +351,14 @@ class MixedNetwork(SimpleMixedNetwork):
         if np.sum(input_c_t) > 0:
             cr_input_c_t = np.tile(input_c_t, (self.N_cr,1)).T.flatten()
             cr_units = self.ring_indices.flatten()
-            cr_f_t = self.J[cr_units,:] @ prev_m + h_ext[cr_units]
-            cr_dmdt = -prev_m[cr_units] + self._g(cr_f_t + cr_input_c_t*self.C)
+            cr_f_t = self.J[cr_units,:] @ self._g(prev_m)
+            cr_f_t += self._g(h_ext[cr_units])
+            cr_dmdt = -prev_m[cr_units] + cr_f_t + self._g(cr_input_c_t*self.C)
             cr_m_t = prev_m[cr_units] + self.dt*cr_dmdt
             prev_m[cr_units] = cr_m_t
 
         # Then, activate the rest of the units
-        f_t = self.J @ prev_m + h_ext
+        f_t = self.J @ self._g(prev_m) + self._g(h_ext)
         if np.sum(input_c_t) > 0:
             Jcr_offset = np.zeros(f_t.size)
             for idx, cr_connections in enumerate(self.ring_indices):
@@ -367,8 +368,8 @@ class MixedNetwork(SimpleMixedNetwork):
                 for i in range(2):
                     Jcr_offset[target_index + i + 1] = offset_val
                     Jcr_offset[target_index - i - 1] = offset_val
-            f_t += Jcr_offset
-        dmdt = -prev_m + self._g(f_t)
+            f_t += self._g(Jcr_offset)
+        dmdt = -prev_m + f_t
         m_t = prev_m + self.dt*dmdt
         return m_t, f_t, dmdt
 
@@ -445,19 +446,32 @@ class PlasticMixedNetwork(MixedNetwork):
 
 
         h_ext = alpha_t*np.cos(input_t - self.thetas)
+        uniform_inhib = 0.2
+
+#        # One Step
+#        input_c_t = np.tile(input_c_t, (self.N_cr,1)).T.flatten()
+#        cr_units = self.ring_indices.flatten()
+#        c_offset = np.zeros(prev_m.size)
+#        c_offset[cr_units] = input_c_t*self.C
+#        f_t = self.J @ self._g(prev_m) + h_ext + self._g(c_offset)
+#        dmdt = -prev_m + f_t - uniform_inhib
+#        m_t = prev_m + self.dt*dmdt
+#        prev_m = m_t
 
         # Activate context to ring units first
         if np.sum(input_c_t) > 0:
             cr_input_c_t = np.tile(input_c_t, (self.N_cr,1)).T.flatten()
             cr_units = self.ring_indices.flatten()
-            cr_f_t = self.J[cr_units,:] @ prev_m + h_ext[cr_units]
-            cr_dmdt = -prev_m[cr_units] + self._g(cr_f_t + cr_input_c_t*self.C)
+            cr_f_t = self.J[cr_units,:] @ self._g(prev_m)
+            cr_f_t += self._g(h_ext[cr_units])
+            cr_dmdt = -prev_m[cr_units] + cr_f_t + self._g(cr_input_c_t*self.C)
+            cr_dmdt -= uniform_inhib
             cr_m_t = prev_m[cr_units] + self.dt*cr_dmdt
             prev_m[cr_units] = cr_m_t
 
         # Then, activate the rest of the units
-        f_t = self.J @ prev_m + h_ext
-        dmdt = -prev_m + self._g(f_t)
+        f_t = self.J @ self._g(prev_m) + self._g(h_ext)
+        dmdt = -prev_m + f_t - uniform_inhib
         m_t = prev_m + self.dt*dmdt
         return m_t, f_t, dmdt
 

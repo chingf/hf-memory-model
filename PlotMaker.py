@@ -40,7 +40,7 @@ class PlotMaker(object):
         plt.show()
 
     def plot_slider(
-            self, C_max=15, Ncr_max=50, Jcr_max=0.2,
+            self, C_max=15, Ncr_max=50, Jcr_max=0.1,
             C_init=1, Ncr_init=40, Jcr_init=0.01
             ):
         """
@@ -84,7 +84,7 @@ class PlotMaker(object):
         axJcr = plt.axes([0.15, 0.1, 0.65, 0.03], facecolor=axcolor)
         sC = Slider(axC, "C", 0, C_max, valinit=C_init, valstep=0.1)
         sNcr = Slider(axNcr, "N_cr", 2, Ncr_max, valinit=Ncr_init, valstep=2)
-        sJcr = Slider(axJcr, "J_cr", 0, Jcr_max, valinit=Jcr_init, valstep=0.005)
+        sJcr = Slider(axJcr, "J_cr", 0, Jcr_max, valinit=Jcr_init, valstep=0.0005)
         def update(val):
             C = sC.val
             Ncr = int(sNcr.val)
@@ -142,7 +142,6 @@ class PlotMaker(object):
 
         Args:
             input_ext (numpy array): Size (T,) array of float radians representing
-                the external stimulus. Here, the stimulus is some external cue
                 that indicates what the correct orientation theta_0 is.
             alphas (numpy array): Size (T,) array of float representing the
                 strength of the external input.
