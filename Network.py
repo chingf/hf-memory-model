@@ -168,7 +168,10 @@ class SimpleMixedNetwork(RingNetwork):
         self.J2 = self.base_J2/N
         self.thetas = np.linspace(0, 2*pi, N)
         if ring_indices is None:
-            self.ring_indices = np.random.choice(N, N_c, replace=False)
+            ring_indices = []
+            for context in np.arange(N_c):
+                ring_indices.append(np.random.choice(N, replace = False))
+            self.ring_indices = np.array(ring_indices)
         else:
             if ring_indices.size != N_c:
                 raise ValueError("Context unit indices are of incorrect size.")
@@ -318,10 +321,13 @@ class MixedNetwork(SimpleMixedNetwork):
             if target_indices.size != N_c:
                 raise ValueError("Target unit indices are of incorrect size.")
             self.target_indices = target_indices
-        self.ring_indices = np.random.choice(
-            [i for i in range(N) if i not in self.target_indices],
-            size=(N_c, N_cr), replace=False
-            )
+        ring_indices = []
+        for context in np.arange(N_c):
+            ring_indices.append(np.random.choice(
+                [i for i in range(N) if i not in self.target_indices],
+                size=(N_cr,), replace=False
+                ))
+        self.ring_indices = np.array(ring_indices)
         self.J0 = self.base_J0/N
         self.J2 = self.base_J2/N
         self.thetas = np.linspace(0, 2*pi, N)
@@ -446,17 +452,7 @@ class PlasticMixedNetwork(MixedNetwork):
 
 
         h_ext = alpha_t*np.cos(input_t - self.thetas)
-        uniform_inhib = 0.2
-
-#        # One Step
-#        input_c_t = np.tile(input_c_t, (self.N_cr,1)).T.flatten()
-#        cr_units = self.ring_indices.flatten()
-#        c_offset = np.zeros(prev_m.size)
-#        c_offset[cr_units] = input_c_t*self.C
-#        f_t = self.J @ self._g(prev_m) + h_ext + self._g(c_offset)
-#        dmdt = -prev_m + f_t - uniform_inhib
-#        m_t = prev_m + self.dt*dmdt
-#        prev_m = m_t
+        uniform_inhib = 0.1
 
         # Activate context to ring units first
         if np.sum(input_c_t) > 0:
