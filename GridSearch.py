@@ -8,17 +8,20 @@ from Network import *
 class GridSearch(object):
     """Performs grid search over parameters for a network"""
 
-    def __init__(self, Ncr_max=60, K_max=0.5, Jcr_max=0.09):
+    def __init__(self, Ncr_max=60, K_max=0.5, Jcr_max=0.09, overlap=True):
+        if not overlap:
+            Ncr_max = min(48, Ncr_max)
         self.N = 100
         self.N_c = 2
         self.target_indices = np.array([self.N//2, 0])
         self.T = 1250
         self.num_reps = 25
         self.C = 1
-        Ncr_step = 5
+        self.overlap = overlap
+        Ncr_step = 2
         K_step = 0.025
         Jcr_step = 0.005
-        self.Ncr_range = np.array([1, 2, 4, 8, 16, 32, 40])
+        self.Ncr_range = np.arange(2, Ncr_max + Ncr_step, Ncr_step)
         self.K_range = np.arange(0., K_max + K_step, K_step)
         self.Jcr_range = np.arange(0.01, Jcr_max + Jcr_step, Jcr_step)
 
@@ -43,10 +46,10 @@ class GridSearch(object):
         nav_restart = np.argwhere(alphas == 0)[-1, 0] + 1
 
         for Ncr_idx, Ncr in enumerate(self.Ncr_range):
-            print()
-            print(Ncr)
+            print("---------")
+            print("Ncr = " + str(Ncr))
             for K_idx, K in enumerate(self.K_range):
-                print(K)
+                print("K = " + str(K))
                 for Jcr_idx, Jcr in enumerate(self.Jcr_range):
                     f_avg, f_std = self._get_network_score(
                         Ncr, K, Jcr, input_ext, input_c, alphas
@@ -98,7 +101,8 @@ class GridSearch(object):
         # Run the network multiple times
         for _ in range(self.num_reps):
             network = PlasticMixedNetwork(
-                self.N, self.N_c, self.C, K, Ncr, Jcr, self.target_indices
+                self.N, self.N_c, self.C, K, Ncr, Jcr,
+                self.target_indices, self.overlap
                 )
             _, f, _ = network.simulate(input_ext, input_c, alphas)
             fs.append(f.reshape(self.N*self.T,))

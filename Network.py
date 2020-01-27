@@ -317,7 +317,10 @@ class MixedNetwork(SimpleMixedNetwork):
         ValueError: If target_indices.size != N_c
     """
 
-    def __init__(self, N, N_c, C, K_inhib, N_cr, J_cr, target_indices=None):
+    def __init__(
+            self, N, N_c, C, K_inhib, N_cr, J_cr,
+            target_indices=None, overlap=True
+            ):
         self.N = N
         self.N_c = N_c
         self.C = C
@@ -330,13 +333,7 @@ class MixedNetwork(SimpleMixedNetwork):
             if target_indices.size != N_c:
                 raise ValueError("Target unit indices are of incorrect size.")
             self.target_indices = target_indices
-        ring_indices = []
-        for context in np.arange(N_c):
-            ring_indices.append(np.random.choice(
-                [i for i in range(N) if i not in self.target_indices],
-                size=(N_cr,), replace=False
-                ))
-        self.ring_indices = np.array(ring_indices)
+        self._set_ring_cells(overlap)
         self.J0 = self.base_J0/N
         self.J2 = self.base_J2/N
         self.thetas = np.linspace(0, 2*pi, N)
@@ -388,6 +385,25 @@ class MixedNetwork(SimpleMixedNetwork):
         dmdt = -prev_m + f_t - self.K_inhib
         m_t = prev_m + self.dt*dmdt
         return m_t, f_t, dmdt
+
+    def _set_ring_cells(self, overlap=True):
+        """
+        Determines what ring cells each context synapses onto
+        """
+
+        if overlap:
+            ring_indices = []
+            for context in np.arange(self.N_c):
+                ring_indices.append(np.random.choice(
+                    [i for i in range(self.N) if i not in self.target_indices],
+                    size=(self.N_cr,), replace=False
+                    ))
+            self.ring_indices = np.array(ring_indices)
+        else:
+            self.ring_indices = np.random.choice(
+                [i for i in range(self.N) if i not in self.target_indices],
+                size=(self.N_c, self.N_cr), replace=False
+                )
 
 class PlasticMixedNetwork(MixedNetwork):
     """
