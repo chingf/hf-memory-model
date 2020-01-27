@@ -13,6 +13,7 @@ class RingNetwork(object):
     Args:
         N (int): Number of units in the network. Their preferred tuning evenly
            covers the ring
+        K_inhib (float): Value of global inhibition
 
     Attributes:
         base_J0 (float): parameter representing uniform all-to-all inhibition.
@@ -23,6 +24,7 @@ class RingNetwork(object):
         J2 (float): parameter base_J2 normalized for the number of units.
         N (int): integer number of units in the network. Thus unit i will
             represent neurons with preferred tuning at 2pi/i radians.
+        K_inhib (float): Value of global inhibition
         J (numpy array): (N, N) array of floats representing the connectivity
             between units. V_ij will represent the connection from j to i.
         thetas (numpy array): (N,) array of float radians. The value at i
@@ -33,8 +35,9 @@ class RingNetwork(object):
     base_J2 = 4.0
     dt = 0.1
 
-    def __init__(self, N):
+    def __init__(self, N, K_inhib):
         self.N = N
+        self.K_inhib = K_inhib
         self.J0 = self.base_J0/N
         self.J2 = self.base_J2/N
         self.thetas = np.linspace(0, 2*pi, N)
@@ -96,8 +99,8 @@ class RingNetwork(object):
 
         h_ext = alpha_t*np.cos(input_t - self.thetas)
         f_t = self.J @ self._g(prev_m) + self._g(h_ext)
-        dmdt = -prev_m + f_t
-        m_t = prev_m + self.dt*dmdt #TODO: see how this changes with odeint
+        dmdt = -prev_m + f_t - self.K_inhib
+        m_t = prev_m + self.dt*dmdt 
         return m_t, f_t
 
     def _g(self, f_t):
@@ -130,6 +133,7 @@ class SimpleMixedNetwork(RingNetwork):
         N_c (int): Number of context units.
         C (float): parameter for the constant gain added to dmdt during the
             context mode.
+        K_inhib (float): Value of global inhibition
         ring_indices (numpy array): Optional; size (N_c,) array containing the
             indices of the ring units that each context unit synapses onto. If
             not provided, they will be randomly drawn.
@@ -146,6 +150,7 @@ class SimpleMixedNetwork(RingNetwork):
         N_c (int): Number of external context units.
         C (float): parameter for the constant gain added to dmdt during the
             context mode.
+        K_inhib (float): Value of global inhibition
         ring_indices (numpy array): Optional; size (N_c,) array containing the
             indices of the ring unit that a context unit synapses onto. If not
             provided, they will be randomly drawn.
@@ -160,10 +165,11 @@ class SimpleMixedNetwork(RingNetwork):
         ValueError: If ring_indices.size != N_c
     """
 
-    def __init__(self, N, N_c, C, ring_indices=None):
+    def __init__(self, N, N_c, C, K_inhib, ring_indices=None):
         self.N = N
         self.N_c = N_c
         self.C = C
+        self.K_inhib = K_inhib
         self.J0 = self.base_J0/N
         self.J2 = self.base_J2/N
         self.thetas = np.linspace(0, 2*pi, N)
@@ -251,7 +257,7 @@ class SimpleMixedNetwork(RingNetwork):
             c_offset[self.ring_indices - i - 1] = input_c_t
         c_offset *= self.C
         f_t += self._g(c_offset)
-        dmdt = -prev_m + f_t
+        dmdt = -prev_m + f_t - self.K_inhib
         m_t = prev_m + self.dt*dmdt
         return m_t, f_t, dmdt
 
@@ -269,6 +275,7 @@ class MixedNetwork(SimpleMixedNetwork):
         N_c (int): Number of context units.
         C (float): parameter for the constant gain added to the dmdt for a
             ring unit when its connected context unit is activated.
+        K_inhib (float): Value of global inhibition
         N_cr (int): Number of ring units that a single context unit synapses
             onto.
         J_cr (float): parameter; the synaptic strength from ring unit to target
@@ -289,6 +296,7 @@ class MixedNetwork(SimpleMixedNetwork):
         N_c (int): Number of external context units.
         C (float): parameter for the constant gain added to dmdt during the
             context mode.
+        K_inhib (float): Value of global inhibition
         N_cr (int): Number of ring units that a single context unit synapses
             onto.
         J_cr (float): parameter; the synaptic strength from ring unit to target
@@ -309,10 +317,11 @@ class MixedNetwork(SimpleMixedNetwork):
         ValueError: If target_indices.size != N_c
     """
 
-    def __init__(self, N, N_c, C, N_cr, J_cr, target_indices=None):
+    def __init__(self, N, N_c, C, K_inhib, N_cr, J_cr, target_indices=None):
         self.N = N
         self.N_c = N_c
         self.C = C
+        self.K_inhib = K_inhib
         self.N_cr = N_cr
         self.J_cr = J_cr
         if target_indices is None:
@@ -360,6 +369,7 @@ class MixedNetwork(SimpleMixedNetwork):
             cr_f_t = self.J[cr_units,:] @ self._g(prev_m)
             cr_f_t += self._g(h_ext[cr_units])
             cr_dmdt = -prev_m[cr_units] + cr_f_t + self._g(cr_input_c_t*self.C)
+            cr_dmdt -= self.K_inhib
             cr_m_t = prev_m[cr_units] + self.dt*cr_dmdt
             prev_m[cr_units] = cr_m_t
 
@@ -375,7 +385,7 @@ class MixedNetwork(SimpleMixedNetwork):
                     Jcr_offset[target_index + i + 1] = offset_val
                     Jcr_offset[target_index - i - 1] = offset_val
             f_t += self._g(Jcr_offset)
-        dmdt = -prev_m + f_t
+        dmdt = -prev_m + f_t - self.K_inhib
         m_t = prev_m + self.dt*dmdt
         return m_t, f_t, dmdt
 
@@ -452,7 +462,6 @@ class PlasticMixedNetwork(MixedNetwork):
 
 
         h_ext = alpha_t*np.cos(input_t - self.thetas)
-        uniform_inhib = 0.1
 
         # Activate context to ring units first
         if np.sum(input_c_t) > 0:
@@ -461,13 +470,13 @@ class PlasticMixedNetwork(MixedNetwork):
             cr_f_t = self.J[cr_units,:] @ self._g(prev_m)
             cr_f_t += self._g(h_ext[cr_units])
             cr_dmdt = -prev_m[cr_units] + cr_f_t + self._g(cr_input_c_t*self.C)
-            cr_dmdt -= uniform_inhib
+            cr_dmdt -= self.K_inhib 
             cr_m_t = prev_m[cr_units] + self.dt*cr_dmdt
             prev_m[cr_units] = cr_m_t
 
         # Then, activate the rest of the units
         f_t = self.J @ self._g(prev_m) + self._g(h_ext)
-        dmdt = -prev_m + f_t - uniform_inhib
+        dmdt = -prev_m + f_t - self.K_inhib 
         m_t = prev_m + self.dt*dmdt
         return m_t, f_t, dmdt
 

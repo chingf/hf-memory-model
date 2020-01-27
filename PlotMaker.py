@@ -40,8 +40,8 @@ class PlotMaker(object):
         plt.show()
 
     def plot_slider(
-            self, C_max=15, Ncr_max=50, Jcr_max=0.1,
-            C_init=1, Ncr_init=40, Jcr_init=0.01
+            self, C_max=15, Ncr_max=80, Jcr_max=0.1,
+            C_init=1, Ncr_init=52, Jcr_init=0.015
             ):
         """
         Makes the main 3-chunk plot with sliders to change PlasticMixedNetwork
@@ -99,6 +99,12 @@ class PlotMaker(object):
                 f += _f
             f /= num_reps
             aximg.set_data(np.flip(f, axis=0))
+            bump_f = f[:, 799]
+            bump_height = np.max(bump_f) - np.mean(bump_f)
+            bump_std = bump_height/np.std(bump_f)
+            print("Std Dev above mean: %d"%bump_std)
+            print("Mean: %1.2f"%np.mean(bump_f))
+            print()
             fig.canvas.draw_idle()
 
         # Define reset button

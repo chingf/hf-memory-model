@@ -8,17 +8,18 @@ from Network import *
 class GridSearch(object):
     """Performs grid search over parameters for a network"""
 
-    def __init__(self, C_max=1.5, Ncr_max=60, Jcr_max=0.09):
+    def __init__(self, Ncr_max=60, K_max=0.5, Jcr_max=0.09):
         self.N = 100
         self.N_c = 2
         self.target_indices = np.array([self.N//2, 0])
         self.T = 1250
-        self.num_reps = 15
-        C_step = 0.1
+        self.num_reps = 25
+        self.C = 1
         Ncr_step = 5
+        K_step = 0.025
         Jcr_step = 0.005
-        self.C_range = np.arange(0.1, C_max + C_step, C_step)
         self.Ncr_range = np.array([1, 2, 4, 8, 16, 32, 40])
+        self.K_range = np.arange(0., K_max + K_step, K_step)
         self.Jcr_range = np.arange(0.01, Jcr_max + Jcr_step, Jcr_step)
 
     def run_search(self):
@@ -29,10 +30,10 @@ class GridSearch(object):
         # Define parameter range and input
         input_ext, input_c, alphas = InputGenerator().get_input(self.T, self.N_c)
         scores = np.zeros(
-            (self.Ncr_range.size, self.C_range.size, self.Jcr_range.size)
+            (self.Ncr_range.size, self.K_range.size, self.Jcr_range.size)
             )*np.nan
         std = np.zeros(
-            (self.Ncr_range.size, self.C_range.size, self.Jcr_range.size)
+            (self.Ncr_range.size, self.K_range.size, self.Jcr_range.size)
             )*np.nan
 
         # Define the variables needed to evaluate each parameter set
@@ -44,15 +45,15 @@ class GridSearch(object):
         for Ncr_idx, Ncr in enumerate(self.Ncr_range):
             print()
             print(Ncr)
-            for C_idx, C in enumerate(self.C_range):
-                print(C)
+            for K_idx, K in enumerate(self.K_range):
+                print(K)
                 for Jcr_idx, Jcr in enumerate(self.Jcr_range):
                     f_avg, f_std = self._get_network_score(
-                        C, Ncr, Jcr, input_ext, input_c, alphas
+                        Ncr, K, Jcr, input_ext, input_c, alphas
                         )
 
                     # Record the average std dev during context situations 
-                    std[Ncr_idx, C_idx, Jcr_idx] = np.mean(
+                    std[Ncr_idx, K_idx, Jcr_idx] = np.mean(
                         f_std[:, nav_end:nav_restart]
                         )
 
@@ -84,10 +85,10 @@ class GridSearch(object):
                             ))
 
                     # Record the bias
-                    scores[Ncr_idx, C_idx, Jcr_idx] = np.mean(bias_strength)
+                    scores[Ncr_idx, K_idx, Jcr_idx] = np.mean(bias_strength)
         return scores, std
 
-    def _get_network_score(self, C, Ncr, Jcr, input_ext, input_c, alphas):
+    def _get_network_score(self, Ncr, K, Jcr, input_ext, input_c, alphas):
         """
         Randomly initializes the network and runs it multiple times.
         """
@@ -97,7 +98,7 @@ class GridSearch(object):
         # Run the network multiple times
         for _ in range(self.num_reps):
             network = PlasticMixedNetwork(
-                self.N, self.N_c, C, Ncr, Jcr, self.target_indices
+                self.N, self.N_c, self.C, K, Ncr, Jcr, self.target_indices
                 )
             _, f, _ = network.simulate(input_ext, input_c, alphas)
             fs.append(f.reshape(self.N*self.T,))
