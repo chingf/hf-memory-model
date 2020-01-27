@@ -1,5 +1,5 @@
-import pdb
 import pickle
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
@@ -10,33 +10,23 @@ from GridSearch import GridSearch
 from Network import RingNetwork, SimpleMixedNetwork, MixedNetwork, PlasticMixedNetwork
 
 def gridsearch(overlap, name):
-    scores, std = GridSearch(overlap).run_search()
-    pdb.set_trace()
+    scores, std = GridSearch(overlap=overlap).run_search()
     results = {}
     results['scores'] = scores
     results['std'] = std
     with open("gridsearch-" + name + ".p", "wb") as f:
         pickle.dump(results, f)
 
-def plot():
-    plotmaker = PlotMaker()
-    plotmaker.plot_slider()
+def main(network_type):
+    if network_type == "overlap":
+        print("Running overlap grid search")
+        gridsearch(True, "overlap")
+    else:
+        print("Running non-overlapping grid search")
+        gridsearch(True, "nonoverlap")
 
-def main():
-    network = RingNetwork(100)
-    num_steps = 500
-    input = np.concatenate([
-        np.linspace(0, 2*pi, num_steps//4),
-        np.linspace(2*pi, 0, num_steps//4),
-        np.linspace(0, 2*pi, num_steps//4),
-        np.linspace(2*pi, 0, num_steps//4)
-        ])
-    alphas = np.ones(input.size)*0.6
-    m, f = network.simulate(input, alphas)
-    pdb.set_trace()
-
-print("STARTING OVERLAPPING GRID SEARCH")
-gridsearch(True, "overlap")
-print()
-print("STARTING NON-OVERLAPPING GRID SEARCH")
-gridsearch(True, "nonoverlap")
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Which network?")
+    parser.add_argument("t")
+    args = parser.parse_args()
+    main(args.t)
