@@ -23,14 +23,15 @@ class InputGenerator(object):
         input_ext = np.concatenate([
             np.linspace(0, 2*pi, T//5),
             np.linspace(2*pi, 0, T//5),
-            np.linspace(0, 0, T//5),
-            np.linspace(0, 0, T//5),
+            np.linspace(0, 2*pi, T//5),
+            np.linspace(2*pi, 0, T//5),
             np.linspace(0, 2*pi, T//5)
             ])
         alphas = np.ones(input_ext.size)*0.6
         input_c = np.zeros((input_ext.size, N_c))
-        alphas[int(0.4*T):int(0.8*T),] = 0
-        input_c = np.zeros((input_ext.size, N_c))
-        input_c[int(0.52*T):int(0.64*T), 0] = 1
-        input_c[int(0.68*T):int(0.8*T), 1] = 1
+#        alphas[int(0.4*T):int(0.8*T),] = 0
+        alphas[400:int(0.8*T),] = 0
+        input_c = np.zeros(input_ext.size)
+        input_c[int(0.52*T):int(0.6*T)] = 1
+        input_c[int(0.7*T):int(0.8*T)] = 1
         return input_ext, input_c, alphas

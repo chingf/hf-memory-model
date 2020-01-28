@@ -5,7 +5,7 @@ import matplotlib.gridspec as gridspec
 from matplotlib.widgets import Slider, Button, CheckButtons
 from math import pi
 from InputGenerator import InputGenerator
-from Network import PlasticMixedNetwork
+from Network import MixedNetwork
 
 class PlotMaker(object):
     """Makes plots to visualize a ring network."""
@@ -40,18 +40,17 @@ class PlotMaker(object):
         plt.show()
 
     def plot_slider(
-            self, C_max=15, Ncr_max=80, Jcr_max=0.1,
-            C_init=1, Ncr_init=52, Jcr_init=0.015
+            self, K_max=0.5, Ncr_max=80, Jcr_max=0.1,
+            K_init=0., Ncr_init=52, Jcr_init=0.015
             ):
         """
-        Makes the main 3-chunk plot with sliders to change PlasticMixedNetwork
+        Makes the main 3-chunk plot with sliders to change MixedNetwork
         activity based on parameters
 
         Args:
             Arguments will initialize the following parameters and specify the
             maximum value these parameters can attain for visualization purposes
-            C (float): parameter for the constant gain added to the dmdt for a
-                ring unit when its connected context unit is activated.
+            K (float): parameter for the global inhibition 
             N_cr (int): Number of ring units that a single context unit synapses
                 onto.
             J_cr (float): parameter; the synaptic strength from ring unit to
@@ -63,13 +62,14 @@ class PlotMaker(object):
         # Define fixed parameters
         N = 100
         N_c = 2
+        C = 1
         target_indices = np.array([N//2, 0])
         T = 1250
         input_ext, input_c, alphas = InputGenerator().get_input(T, N_c)
 
         # Initialize graph
-        network = PlasticMixedNetwork(
-            N, N_c, C_init, Ncr_init, Jcr_init, target_indices
+        network = MixedNetwork(
+            N, N_c, C, K_init, Ncr_init, Jcr_init, target_indices
             )
         m, f, dmdt = network.simulate(input_ext, input_c, alphas)
         aximg = self._make_main_grid(
@@ -79,21 +79,21 @@ class PlotMaker(object):
 
         # Define parameter sliders 
         axcolor = 'lightgoldenrodyellow'
-        axC = plt.axes([0.15, 0.3, 0.65, 0.03], facecolor=axcolor)
+        axK = plt.axes([0.15, 0.3, 0.65, 0.03], facecolor=axcolor)
         axNcr = plt.axes([0.15, 0.2, 0.65, 0.03], facecolor=axcolor)
         axJcr = plt.axes([0.15, 0.1, 0.65, 0.03], facecolor=axcolor)
-        sC = Slider(axC, "C", 0, C_max, valinit=C_init, valstep=0.1)
+        sK = Slider(axK, "K_inhib", 0, K_max, valinit=K_init, valstep=0.025)
         sNcr = Slider(axNcr, "N_cr", 2, Ncr_max, valinit=Ncr_init, valstep=2)
         sJcr = Slider(axJcr, "J_cr", 0, Jcr_max, valinit=Jcr_init, valstep=0.0005)
         def update(val):
-            C = sC.val
+            K = sK.val
             Ncr = int(sNcr.val)
             Jcr = sJcr.val
             num_reps = 10 if self.view_avg else 1
             f = np.zeros((N, T)) 
             for _ in range(num_reps):
-                network = PlasticMixedNetwork(
-                    N, N_c, C, Ncr, Jcr, target_indices
+                network = MixedNetwork(
+                    N, N_c, C, K, Ncr, Jcr, target_indices
                     )
                 _, _f, _ = network.simulate(input_ext, input_c, alphas)
                 f += _f
@@ -113,7 +113,7 @@ class PlotMaker(object):
             resetax, 'Reset', color=axcolor, hovercolor='0.975'
             )
         def reset(event):
-            sC.reset()
+            sK.reset()
             sNcr.reset()
             sJcr.reset()
 
@@ -130,7 +130,7 @@ class PlotMaker(object):
             self.view_avg = False if self.view_avg else True
 
         # Link each widget to its action 
-        sC.on_changed(update)
+        sK.on_changed(update)
         sNcr.on_changed(update)
         sJcr.on_changed(update)
         resetbutton.on_clicked(reset)
@@ -170,6 +170,8 @@ class PlotMaker(object):
         plt.subplot2grid((gridrows, gridcols), (0,0), rowspan=4)
         plt.plot(np.arange(T), input_ext, linewidth=2)
         if (input_c is not None) and (target_indices is not None):
+            if input_c.size == T:
+                input_c = input_c.reshape((-1, 1))
             for c_idx, activity_c in enumerate(input_c.T): # Iterate over context
                 on_time = np.where(activity_c > 0)
                 target_index = target_indices[c_idx]*2*pi
