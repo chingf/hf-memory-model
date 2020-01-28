@@ -63,12 +63,14 @@ class GridSearch(object):
                     # Parameter set is valid if the bump jumps to contexts
                     valid_bump_switch = True
                     for target_num, target_idx in enumerate(self.target_indices):
-                        bump_location = np.argmax(
+                        bump_loc = np.argmax(
                             f_avg[:, target_end_indices[target_num]]
                             )
-                        if not self._bump_loc_correct(
-                            bump_location, target_idx, target_width
-                            ):
+                        bump_height = f_avg[bump_loc, target_end_indices[target_num]]
+                        bump_loc_correct = self._bump_loc_correct(
+                            bump_loc, target_idx, target_width
+                            ) 
+                        if (not bump_loc_correct) or (bump_height < 0.45):
                             valid_bump_switch = False
                     if not valid_bump_switch:
                         continue
