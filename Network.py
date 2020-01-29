@@ -512,3 +512,24 @@ class MixedNetwork(ContextNetwork):
         m_t = prev_m + self.dt*dmdt
         return m_t, f_t, dmdt
 
+    def _init_J(self):
+        """
+        Initializes the connectivity matrix J
+        """
+
+        J = np.zeros((self.N,self.N))
+        for i in range(self.N):
+            J[i,:]= -self.J0 + self.J2*np.cos(self.thetas[i] - self.thetas)
+        for idx, cr_connections in enumerate(self.ring_indices):
+            target_index = self.target_indices[idx]
+            J[target_index, cr_connections] += self.J_cr
+            other_cr_connections = [
+                c for c in self.ring_indices.flatten() if c not in cr_connections
+                ]
+            for cr_connection in cr_connections:
+                J[cr_connection, other_cr_connections] -= (self.J_cr/2.)
+
+        self.J = J
+
+
+

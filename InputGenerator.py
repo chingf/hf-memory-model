@@ -29,9 +29,8 @@ class InputGenerator(object):
             ])
         alphas = np.ones(input_ext.size)*0.6
         input_c = np.zeros((input_ext.size, N_c))
-#        alphas[int(0.4*T):int(0.8*T),] = 0
-        alphas[400:int(0.8*T),] = 0
+        alphas[int(0.4*T):int(0.8*T),] = 0
         input_c = np.zeros(input_ext.size)
-        input_c[int(0.52*T):int(0.6*T)] = 1
+        input_c[int(0.4*T):int(0.5*T)] = 1
         input_c[int(0.7*T):int(0.8*T)] = 1
         return input_ext, input_c, alphas
