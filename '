@@ -556,3 +556,4 @@ class MixedNetwork(ContextNetwork):
 #            for cr_connection in cr_connections:
 #                J[cr_connection, other_cr_connections] -= self.J_cr/2.
         self.J = J
+

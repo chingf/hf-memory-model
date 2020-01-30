@@ -1,3 +1,4 @@
+import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
@@ -43,7 +44,7 @@ class PlotMaker(object):
 
     def plot_slider(
             self, K_max=0.3, Ncr_max=80, Jcr_max=0.1,
-            K_init=0., Ncr_init=52, Jcr_init=0.015
+            K_init=0., Ncr_init=20, Jcr_init=0.015
             ):
         """
         Makes the main 3-chunk plot with sliders to change MixedNetwork
@@ -74,6 +75,7 @@ class PlotMaker(object):
         network = MixedNetwork(
             N, N_c, C, K_init, Ncr_init, Jcr_init, target_indices
             )
+        self.network = network
         m, f, dmdt = network.simulate(input_ext, input_c, alphas)
         aximg1, aximg2, ringaxs = self._make_main_grid(
             input_ext, alphas, f, input_c, target_indices/N,
@@ -102,7 +104,7 @@ class PlotMaker(object):
             K = sK.val
             Ncr = int(sNcr.val)
             Jcr = sJcr.val
-            input_ext = self._get_input_ext(sExtIn.val, T)
+            input_ext = self._get_input_ext(sExtIn.val, int(sAlpha.val), T)
             alphas = self._get_alphas(int(sAlpha.val), T)
             num_reps = 10 if self.view_avg else 1
             f = np.zeros((N, T)) 
@@ -110,12 +112,14 @@ class PlotMaker(object):
                 network = MixedNetwork(
                     N, N_c, C, K, Ncr, Jcr, target_indices
                     )
+                network = pickle.load(open("network.p", "rb"))
                 _, _f, _ = network.simulate(input_ext, input_c, alphas)
                 f += _f
             f /= num_reps
             aximg1.set_data(np.tile(alphas, (50,1)))
             aximg2.set_data(np.flip(f, axis=0))
             self._make_ring(network, ringaxs)
+            self.network = network
             fig.canvas.draw_idle()
 
         # Define reset button
@@ -140,6 +144,15 @@ class PlotMaker(object):
         def toggle_avg(event):
             self.view_avg = False if self.view_avg else True
 
+        # Define save button
+        saveax = plt.axes([0.2, 0.025, 0.15, 0.04])
+        savebutton = Button(
+            saveax, 'Save Network', color=axcolor, hovercolor='0.975'
+            )
+        def save(event):
+            with open('network.p', 'wb') as f:
+                pickle.dump(self.network, f)
+
         # Link each widget to its action 
         sK.on_changed(update)
         sNcr.on_changed(update)
@@ -149,6 +162,7 @@ class PlotMaker(object):
         resetbutton.on_clicked(reset)
         refreshbutton.on_clicked(update)
         avgbutton.on_clicked(toggle_avg)
+        savebutton.on_clicked(save)
 
         plt.show()
 
@@ -276,13 +290,12 @@ class PlotMaker(object):
         ringaxs[0].set_title("Target 1 (\u03C0)")
         ringaxs[1].set_title("Target 2 (0)")
 
-    def _get_input_ext(self, location, T):
+    def _get_input_ext(self, location, location_timestep, T):
+        pause_length = T - T//5 - location_timestep 
         input_ext = np.concatenate([
-            np.linspace(0, 2*pi, T//5),
-            np.linspace(2*pi, location, T//5),
-            np.linspace(0, 2*pi, T//5),
-            np.linspace(2*pi, 0, T//5),
-            np.linspace(0, 2*pi, T//5)
+            np.linspace(0, location, location_timestep),
+            np.linspace(location, location, pause_length),
+            np.linspace(location, 2*pi, T//5),
             ])
         return input_ext
 
