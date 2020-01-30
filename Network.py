@@ -1,7 +1,8 @@
 import pdb
 import numpy as np
-from math import pi
 import matplotlib.pyplot as plt
+from math import pi
+from sklearn.preprocessing import MinMaxScaler
 
 class RingNetwork(object):
     """
@@ -510,4 +511,8 @@ class PlasticMixedNetwork(MixedNetwork):
             for i in range(2):
                 J[target_index + i + 1, cr_connections] += self.J_cr
                 J[target_index - i - 1, cr_connections] += self.J_cr
+        min_val = -self.J0 - self.J2
+        max_val = -self.J0 + self.J2
+        scaler = MinMaxScaler(feature_range=(min_val, max_val))
+        J = scaler.fit_transform(J.T).T
         self.J = J
