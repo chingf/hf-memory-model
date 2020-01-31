@@ -215,7 +215,7 @@ class SimpleContextNetwork(RingNetwork):
         m = np.zeros((self.N, T)) # Current
         f = np.zeros((self.N, T)) # Firing rate
         dmdt = np.zeros((self.N, T))
-        m0 = 0.1*np.random.normal(0, 1, self.N)
+        m0 = 0.*np.random.normal(0, 1, self.N) #TODO: provide input
         for t in range(T):
             alpha_t = 0 if alphas is None else alphas[t]
             if t == 0:
@@ -425,6 +425,13 @@ class ContextNetwork(SimpleContextNetwork):
                 ))
         self.ring_indices = np.array(ring_indices)
 
+        # Hand coded
+#        set1 = [ 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48,
+#                -4, -8, -12, -16, -20, -24, -28, -32, -36, -40, -44, -48]
+#        self.ring_indices = np.array([
+#            set1, [50 - i for i in set1]
+#            ])
+
 class MixedNetwork(ContextNetwork):
     """
     A ring attractor network with a single context-category unit external to the
@@ -547,12 +554,12 @@ class MixedNetwork(ContextNetwork):
             J[i,:]= -self.J0 + self.J2*np.cos(self.thetas[i] - self.thetas)
         for i in range(self.N):
             J[i,i] = 0
-#        for idx, cr_connections in enumerate(self.ring_indices):
-#            target_index = self.target_indices[idx]
-#            J[target_index, cr_connections] += self.J_cr
-#            other_cr_connections = [
-#                c for c in self.ring_indices.flatten() if c not in cr_connections
-#                ]
-#            for cr_connection in cr_connections:
-#                J[cr_connection, other_cr_connections] -= self.J_cr/2.
+        for idx, cr_connections in enumerate(self.ring_indices):
+            target_index = self.target_indices[idx]
+            J[target_index, cr_connections] += self.J_cr
+            other_cr_connections = [
+                c for c in self.ring_indices.flatten() if c not in cr_connections
+                ]
+            for cr_connection in cr_connections:
+                J[cr_connection, other_cr_connections] -= self.J_cr/2.
         self.J = J

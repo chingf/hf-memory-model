@@ -112,7 +112,6 @@ class PlotMaker(object):
                 network = MixedNetwork(
                     N, N_c, C, K, Ncr, Jcr, target_indices
                     )
-                network = pickle.load(open("network.p", "rb"))
                 _, _f, _ = network.simulate(input_ext, input_c, alphas)
                 f += _f
             f /= num_reps
@@ -236,7 +235,7 @@ class PlotMaker(object):
 
         # Plot network current activity if it was provided
         if m is not None:
-            plt.subplot2grid((gridrows, gridcols), (9,0), rowspan=4)
+            plt.subplot2grid((gridrows, gridcols), (9,0), rowspan=4, colspan=colspan)
             norm = mcolors.DivergingNorm(vmin=f.min(), vmax = f.max(), vcenter=0)
             plt.imshow(
                 np.flip(m, axis=0), cmap=plt.cm.coolwarm, norm=norm, aspect='auto'
