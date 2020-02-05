@@ -40,7 +40,7 @@ class RingNetwork(object):
         self.K_inhib = K_inhib
         self.J0 = self.base_J0/N
         self.J2 = self.base_J2/N
-        self.thetas = np.linspace(0, 2*pi, N)
+        self._init_thetas()
         self._init_J()
 
     def simulate(self, input_ext, alphas=None):
@@ -64,14 +64,15 @@ class RingNetwork(object):
             ValueError: If alphas is provided but is not the same size as input.
         """
  
-        if (alphas is not None) and (input_ext.size != alphas.size):
+        if (alphas is not None) and (input_ext.shape[0] != alphas.size):
             raise ValueError(
                 "If alphas is provided, it should be the same size as input."
                 )
-        T = input_ext.size
+        T = input_ext.shape[0]
         m = np.zeros((self.N, T)) # Current
         f = np.zeros((self.N, T)) # Firing rate
-        m0 = 0.1*np.random.normal(0, 1, self.N)
+        #m0 = 0.1*np.random.normal(0, 1, self.N) # TODO: remove from 0
+        m0 = 0.1*np.cos(0.5 - self.thetas[:,0])
         for t in range(T):
             alpha_t = 0 if alphas is None else alphas[t]
             if t == 0:
@@ -97,7 +98,10 @@ class RingNetwork(object):
                 firing rates, respectively, of each unit in the next time step.
         """
 
-        h_ext = alpha_t*np.cos(input_t - self.thetas)
+        if input_t.size == 1:
+            h_ext = alpha_t*np.cos(input_t - self.thetas[:,0]*2)
+        else:
+            h_ext = alpha_t*input_t
         f_t = self.J @ self._g(prev_m) + self._g(h_ext)
         dmdt = -prev_m + f_t - self.K_inhib
         m_t = prev_m + self.dt*dmdt 
@@ -110,6 +114,11 @@ class RingNetwork(object):
 
         return np.clip(f_t, 0, 1)
 
+    def _init_thetas(self):
+        """ Initializes the preferred tuning of each unit """
+
+        self.thetas = np.linspace(0, 2*pi, self.N)
+
     def _init_J(self):
         """
         Initializes the connectivity matrix J
@@ -118,6 +127,82 @@ class RingNetwork(object):
         J = np.zeros((self.N,self.N))
         for i in range(self.N):
             J[i,:]= -self.J0 + self.J2*np.cos(self.thetas[i] - self.thetas)
+        self.J = J
+
+class RemapNetwork(RingNetwork):
+    """
+    An attractor network made implicity of two separate ring attractors. The
+    units of one ring attractor are 'remapped' to form the second ring attractor.
+
+    In this model, one timestep corresponds to 100 ms. 
+
+    Args:
+        N (int): Number of units in the network. Their preferred tuning evenly
+           covers the ring
+        K_inhib (float): Value of global inhibition
+
+    Attributes:
+        base_J0 (float): parameter representing uniform all-to-all inhibition.
+        base_J2 (float): parameter representing amplitude of angle-specific
+            interaction.
+        dt (float): parameter representing the size of one timestep.
+        J0 (float): parameter base_J0 normalized for the number of units.
+        J2 (float): parameter base_J2 normalized for the number of units.
+        N (int): integer number of units in the network. Thus unit i will
+            represent neurons with preferred tuning at 2pi/i radians.
+        K_inhib (float): Value of global inhibition
+        J (numpy array): (N, N) array of floats representing the connectivity
+            between units. V_ij will represent the connection from j to i.
+        thetas (numpy array): (N,2) array of float radians. The value at i,j
+            represents the preferred tuning of unit i in network j
+    """
+
+    def _step(self, prev_m, input_t, alpha_t):
+        """
+        Steps the network forward one time step. Evolves the current network
+        activity according to the defined first-order dynamics.
+
+        Args:
+            prev_m (numpy array): (N,) size array of floats; the current
+            input_t (float): Radian representing the external stimulus.
+            alpha_t (float): The strength of the external stimulus
+
+        Returns:
+            m_{t} and f_{t}: numpy arrays representing the current and the
+                firing rates, respectively, of each unit in the next time step.
+        """
+
+        if input_t.size == 1:
+            h_ext = alpha_t*np.cos(input_t - self.thetas[:,0]*2)
+        else:
+            h_ext = alpha_t*input_t
+        f_t = self.J @ self._g(prev_m) + self._g(h_ext)
+        dmdt = -prev_m + f_t - self.K_inhib
+        m_t = prev_m + self.dt*dmdt 
+        return m_t, f_t
+
+    def _init_thetas(self):
+        """ Initializes the preferred tuning of each unit """
+
+        remap_order = np.arange(self.N)
+        np.random.seed(0)
+        np.random.shuffle(remap_order)
+        thetas = np.zeros((self.N, 2))
+        thetas[:,0] = np.linspace(0, 2*pi, self.N)
+        thetas[:,1] = np.linspace(0, 2*pi, self.N)[remap_order]
+        self.thetas = thetas
+        self.remap_order = remap_order
+
+    def _init_J(self):
+        """ Initializes the connectivity matrix J """
+
+        J = np.zeros((self.N,self.N))
+        for i in range(self.N):
+            net1_J = self.J2*np.cos(self.thetas[i,0] - self.thetas[:,0])
+            net2_J = self.J2*np.cos(self.thetas[i,1] - self.thetas[:,1])
+            J[i,:]= -self.J0 + (net1_J + net2_J)
+        for i in range(self.N):
+            J[i,i] = 0
         self.J = J
 
 class SimpleContextNetwork(RingNetwork):
@@ -392,31 +477,6 @@ class ContextNetwork(SimpleContextNetwork):
         Determines what ring cells each context synapses onto
         """
 
-#        # No overlaps and uniform spacing
-#        ring_indices = []
-#        all_rings = [i for i in range(self.N) if i not in self.target_indices]
-#        for context in np.arange(self.N_c):
-#            spacing = (len(all_rings)//self.N_cr) + 1
-#            start_unit = np.random.choice(spacing)
-#            ring_index_set = [
-#                all_rings[(i*spacing)%len(all_rings)] for i in range(self.N_cr)
-#                ]
-#            for idx, i in enumerate(ring_index_set):
-#                if np.sum(ring_index_set == i) > 1:
-#                    ring_index_set[idx] += 1
-#            for i in ring_index_set:
-#                if i in all_rings:
-#                    all_rings.remove(i)
-#            ring_indices.append(ring_index_set)
-#        self.ring_indices = np.array(ring_indices)
-
-#        # No overlaps
-#        self.ring_indices = np.random.choice(
-#            [i for i in range(self.N) if i not in self.target_indices],
-#            size=(self.N_c, self.N_cr), replace=False
-#            )
-
-        # Allows for overlaps
         ring_indices = []
         for context in np.arange(self.N_c):
             ring_indices.append(np.random.choice(
@@ -425,13 +485,6 @@ class ContextNetwork(SimpleContextNetwork):
                 ))
         self.ring_indices = np.array(ring_indices)
 
-        # Hand coded
-#        set1 = [ 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48,
-#                -4, -8, -12, -16, -20, -24, -28, -32, -36, -40, -44, -48]
-#        self.ring_indices = np.array([
-#            set1, [50 - i for i in set1]
-#            ])
-
 class MixedNetwork(ContextNetwork):
     """
     A ring attractor network with a single context-category unit external to the
@@ -439,9 +492,7 @@ class MixedNetwork(ContextNetwork):
     ring units themselves synapses onto many different target units. Each of
     these targets correspond to separate cache/memory sites; in other words, a
     single context from the activated context-category.
-
     In this model, one timestep corresponds to 100 ms. 
-
     Args:
         N (int): Number of units in the network. Their preferred tuning evenly
            covers the ring
@@ -454,7 +505,6 @@ class MixedNetwork(ContextNetwork):
         target_indices (numpy array): Optional; size (N_c,) array containing the
             indices of the target units. If not provided, they will be randomly
             drawn.
-
     Attributes:
         base_J0 (float): parameter representing uniform all-to-all inhibition.
         base_J2 (float): parameter representing amplitude of angle-specific
@@ -482,7 +532,6 @@ class MixedNetwork(ContextNetwork):
             the ring units that the context units synapse onto.
         target_indices (numpy array): (N_c,) array containing the
             indices of the target units.
-
     Raises:
         ValueError: If target_indices.size != N_c
     """
@@ -510,14 +559,12 @@ class MixedNetwork(ContextNetwork):
         """
         Steps the network forward one time step. Evolves the current network
         activity according to the defined first-order dynamics.
-
         Args:
             prev_m (numpy array): (N,) size array of floats; the current
             input_t (float): Radian representing the external stimulus.
             input_c_t (numpy array): (N_c,) size array of floats; the activation
                 of context units at this time step.
             alpha_t (float): The strength of the external stimulus
-
         Returns:
             m_{t} and f_{t}: numpy arrays representing the current and the
                 firing rates, respectively, of each unit in the next time step.
@@ -554,12 +601,5 @@ class MixedNetwork(ContextNetwork):
             J[i,:]= -self.J0 + self.J2*np.cos(self.thetas[i] - self.thetas)
         for i in range(self.N):
             J[i,i] = 0
-        for idx, cr_connections in enumerate(self.ring_indices):
-            target_index = self.target_indices[idx]
-            J[target_index, cr_connections] += self.J_cr
-            other_cr_connections = [
-                c for c in self.ring_indices.flatten() if c not in cr_connections
-                ]
-            for cr_connection in cr_connections:
-                J[cr_connection, other_cr_connections] -= self.J_cr/2.
         self.J = J
+
