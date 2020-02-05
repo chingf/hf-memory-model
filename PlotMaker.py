@@ -8,7 +8,7 @@ from math import pi
 from math import cos
 from math import sin
 from InputGenerator import InputGenerator
-from Network import MixedNetwork
+from Network import RemapNetwork 
 
 class PlotMaker(object):
     """Makes plots to visualize a ring network."""

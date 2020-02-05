@@ -4,64 +4,23 @@ from math import pi
 class InputGenerator(object):
     """Generates inputs for networks."""
 
-    def get_input(self, T, N_c):
+    def get_constant_input(self, network, peaks, peaktype="exp"):
         """
-        Returns the standard toy input used. 
-
-        Args:
-            T (int): Number of time steps
-            N_c (int): Number of context units
-        Returns:
-            input_ext (numpy array): Size (T,) array of float radians
-                representing the external stimulus
-            input_c (numpy array): Size (T, N_c) array of floats representing
-                the activation of context units over time
-            alphas (numpy array): Size (T,) array of floats representing the
-                strength of the external input.
+        Returns input centered at PEAKS coherent in the first implicit ring of
+        the network.
         """
 
-        input_ext = np.concatenate([
-            np.linspace(0, 2*pi, T//5),
-            np.linspace(2*pi, 0, T//5),
-            np.linspace(0, 2*pi, T//5),
-            np.linspace(2*pi, 0, T//5),
-            np.linspace(0, 2*pi, T//5)
-            ])
-        alphas = np.ones(input_ext.size)*0.6
-        input_c = np.zeros((input_ext.size, N_c))
-        alphas[int(0.4*T):int(0.8*T),] = 0
-        input_c = np.zeros(input_ext.size)
-        input_c[int(0.4*T):int(0.5*T)] = 1
-        input_c[int(0.7*T):int(0.8*T)] = 1
-        return input_ext, input_c, alphas
-
-    def get_input2(self, T, N_c):
-        """
-        Returns the standard toy input used. 
-
-        Args:
-            T (int): Number of time steps
-            N_c (int): Number of context units
-        Returns:
-            input_ext (numpy array): Size (T,) array of float radians
-                representing the external stimulus
-            input_c (numpy array): Size (T, N_c) array of floats representing
-                the activation of context units over time
-            alphas (numpy array): Size (T,) array of floats representing the
-                strength of the external input.
-        """
-
-        input_ext = np.concatenate([
-            np.linspace(0, 2*pi, T//5),
-            np.linspace(2*pi, 0, T//5),
-            np.linspace(0, 2*pi, T//5),
-            np.linspace(2*pi, 0, T//5),
-            np.linspace(0, 2*pi, T//5)
-            ])
-        alphas = np.ones(input_ext.size)*0.6
-        input_c = np.zeros((input_ext.size, N_c))
-        alphas[:int(0.8*T),] = 0
-        input_c = np.zeros(input_ext.size)
-        input_c[int(0.4*T):int(0.5*T)] = 1
-        input_c[int(0.7*T):int(0.8*T)] = 1
-        return input_ext, input_c, alphas
+        T = 1000
+        Ns = np.arange(network.N)
+        input_t = np.zeros(network.N)
+        peakwidth = 8 
+        for peak in peaks:
+            if peaktype == "exp":
+                bump = -np.square(np.arange(-peakwidth, peakwidth+1))/(peakwidth**2)
+                bump += 1 
+            elif peaktype == "step":
+                bump = np.ones(peakwidth*2 + 1)
+            for idx, unit in enumerate(np.arange(peak-peakwidth, peak + peakwidth+1)):
+                input_t[unit] += bump[idx]
+        return np.tile(input_t, (T, 1))
+            
