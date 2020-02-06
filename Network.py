@@ -32,7 +32,7 @@ class RingNetwork(object):
     """
 
     base_J0 = 0.3 
-    base_J2 = 4.0
+    base_J2 = 5.
     dt = 0.1
 
     def __init__(self, N, K_inhib):
@@ -71,8 +71,8 @@ class RingNetwork(object):
         T = input_ext.shape[0]
         m = np.zeros((self.N, T)) # Current
         f = np.zeros((self.N, T)) # Firing rate
-        m0 = 0.1*np.random.normal(0, 1, self.N) # TODO: remove from 0
-        #m0 = 0.1*np.cos(1. - self.thetas[:,0])
+        m0 = 0.1*np.random.normal(0, 1, self.N)
+        m0[:5] += 0.02
         for t in range(T):
             alpha_t = 0 if alphas is None else alphas[t]
             if t == 0:
@@ -99,7 +99,7 @@ class RingNetwork(object):
         """
 
         if input_t.size == 1:
-            h_ext = alpha_t*np.cos(input_t - self.thetas[:,0]*2)
+            h_ext = alpha_t*np.cos(input_t - self.thetas[:,0])
         else:
             h_ext = alpha_t*input_t
         f_t = self.J @ self._g(prev_m) + self._g(h_ext)
@@ -185,7 +185,6 @@ class RemapNetwork(RingNetwork):
         """ Initializes the preferred tuning of each unit """
 
         remap_order = np.arange(self.N)
-        np.random.seed(0)
         np.random.shuffle(remap_order)
         thetas = np.zeros((self.N, 2))
         thetas[:,0] = np.linspace(0, 2*pi, self.N)
@@ -198,10 +197,30 @@ class RemapNetwork(RingNetwork):
 
         J = np.zeros((self.N,self.N))
         for i in range(self.N):
-            net1_J = self.J2*np.cos(self.thetas[i,0] - self.thetas[:,0])
+            sharp_cos = self._get_sharp_cos()
+            net1_J = self.J2*np.roll(sharp_cos, i - self.N//2)
             net2_J = self.J2*np.cos(self.thetas[i,1] - self.thetas[:,1])
             J[i,:]= -self.J0 + (net1_J + net2_J)
+        for i in range(10):
+            offset = 0.2
+            J[25, 0 + i + 1] += offset
+            J[25, 0 - i - 1] += offset
+            J[75, 30 + i + 1] += offset
+            J[75, 30 - i - 1] += offset
+
         for i in range(self.N):
             J[i,i] = 0
+
         self.J = J
+
+    def _get_sharp_cos(self):
+        """ Returns a sharp sinusoidal curve that drops off rapidly """
+
+        intra_peakwidth = 16
+        cos_bump = np.cos(pi-np.linspace(0, 2*pi, 3*intra_peakwidth))
+        flat_inhibition = np.ones((self.N - intra_peakwidth*3)//2) * -1
+        curve = np.concatenate(
+            (flat_inhibition, cos_bump, flat_inhibition)
+            )
+        return curve
 

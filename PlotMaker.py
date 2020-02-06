@@ -229,7 +229,7 @@ class PlotMaker(object):
             np.flip(f, axis=0), cmap=plt.cm.coolwarm, norm=norm, aspect='auto'
             )
         plt.yticks(
-            [0, f.shape[0]//2, f.shape[0] - 1], ["0", "Pi", "2Pi"]
+            [0, f.shape[0]//2, f.shape[0] - 1], ["2Pi", "Pi", "0"]
             )
         plt.ylabel("f_\u03B8", fontsize=14)
 
@@ -241,7 +241,7 @@ class PlotMaker(object):
                 np.flip(m, axis=0), cmap=plt.cm.coolwarm, norm=norm, aspect='auto'
                 )
             plt.yticks(
-                [0, m.shape[0]//2, m.shape[0] - 1], ["0", "Pi", "2Pi"]
+                [0, m.shape[0]//2, m.shape[0] - 1], ["2Pi", "Pi", "0"]
                 )
             plt.ylabel("m_\u03B8", fontsize=14)
 
