@@ -48,9 +48,10 @@ class OverlapNetwork(object):
         self.overlap = overlap
         self.J0 = self.base_J0/N
         self.J2 = self.base_J2/N
-        self._init_networks()
+        self._init_shared_units()
         self._init_thetas()
         self._init_J()
+        self._init_J_interactions()
 
     def simulate(self, input_ext, alphas=None):
         """
@@ -126,7 +127,7 @@ class OverlapNetwork(object):
         m_t = prev_m + self.dt*dmdt 
         return m_t, f_t
 
-    def _init_networks(self):
+    def _init_shared_units(self):
         """ Determines which units are shared between the two networks """
 
         num_shared_units = int(self.N*self.overlap)
@@ -147,6 +148,17 @@ class OverlapNetwork(object):
 
         thetas = np.linspace(0, 2*pi, self.N)
         self.thetas = thetas
+
+    def _init_J_interactions(self):
+        """ Adds the interactions between networks to J matrix """
+
+        # Currently hard-coded
+        episode_units = [0, pi]
+        place_units = [0, pi]
+        for idx, episode_unit in enumerate(episode_units):
+            episode_unit = self.J_episode_indices[episode_unit]
+            place_unit = self.J_place_indices[place_unit]
+            self.J[episode_unit, place_unit] += (-self.J- + self.J2*1)
 
     def _init_J(self):
         """ Initializes the connectivity matrix J """
