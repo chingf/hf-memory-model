@@ -177,12 +177,13 @@ class PlotMaker(object):
         """
 
         T = input_ext.shape[0]
+        N = network.N
         for t, alpha in enumerate(alphas):
             input_ext[t,:] *= alpha
         gridrows = 9
         gridcols = 12
         rowspan = 3
-        colspan = 12
+        colspan = 10 # Column span for main time-dependent plots
         gridspec.GridSpec(gridrows, gridcols)
 
         # Segregate the two networks
@@ -201,7 +202,16 @@ class PlotMaker(object):
         plt.ylabel("Input to Unit", fontsize=14)
         plt.title("Activity over Time", fontsize=16)
       
-        # Plot network firing rate activity
+        # Plot residuals and episode network activity
+        plt.subplot2grid(
+            (gridrows,gridcols), (rowspan,colspan), rowspan=rowspan, colspan=2
+            )
+        plt.plot(f_ep[:,-1], np.arange(N))
+        for interacting_unit in network.interacting_units[0]:
+            plt.axhline(interacting_unit, color="red", linewidth=0.5)
+        plt.axvline(0, color="gray")
+        plt.yticks([])
+        plt.xticks([])
         plt.subplot2grid(
             (gridrows, gridcols), (rowspan,0), rowspan=rowspan, colspan=colspan
             )
@@ -214,7 +224,16 @@ class PlotMaker(object):
             )
         plt.ylabel("Episode Network", fontsize=14)
 
-        # Plot network current activity if it was provided
+        # Plot residuals and place network activity
+        plt.subplot2grid(
+            (gridrows,gridcols), (rowspan*2,colspan), rowspan=rowspan, colspan=2
+            )
+        plt.plot(f_pl[:,-1], np.arange(N))
+        for interacting_unit in network.interacting_units[1]:
+            plt.axhline(interacting_unit, color="red", linewidth=0.5)
+        plt.axvline(0, color="gray")
+        plt.yticks([])
+        plt.xticks([])
         plt.subplot2grid(
             (gridrows, gridcols), (rowspan*2,0), rowspan=rowspan, colspan=colspan
             )
@@ -242,7 +261,7 @@ class PlotMaker(object):
             x = []
             y = []
             for seed_unit in seed_units:
-                seed_angle = (seed_unit/network.N)*(2*pi)
+                seed_angle = (seed_unit/N)*(2*pi)
                 x.append(cos(seed_angle))
                 y.append(sin(seed_angle))
             target_angle = (target_index/network.N)*(2*pi)

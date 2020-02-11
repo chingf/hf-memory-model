@@ -35,7 +35,7 @@ class OverlapNetwork(object):
         shared_unit_map
         J_episode_indices
         J_place_indices
-
+        interacting_units
     """
 
     base_J0 = 0.3 
@@ -155,6 +155,7 @@ class OverlapNetwork(object):
             for i in np.arange(1, 2):
                 self.J[place_unit - i, episode_unit] += weight_offset 
                 self.J[place_unit + i, episode_unit] += weight_offset 
+        self.interacting_units = np.array([episode_units, place_units])
 
     def _init_J(self):
         """ Initializes the connectivity matrix J """
