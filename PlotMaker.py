@@ -14,30 +14,26 @@ class PlotMaker(object):
     """Makes plots to visualize a ring network."""
 
     def plot_main(
-            self, input_ext, alphas, f, input_c=None, target_indices=None, m=None
+            self, input_ext, alphas, f, network
             ):
         """
-        Plots the basic visualization needed: animal location, input/context
-        strength, network activity.
+        Plots the basic visualization needed: input, episode network activity,
+        place network activity
 
         Args:
-            input_ext (numpy array): Size (T,) array of float radians representing
-                the external stimulus. Here, the stimulus is some external cue
-                that indicates what the correct orientation theta_0 is.
+            input_ext (numpy array): Size (T, num_units) array of floats
+                representing the external stimulus to the episode network. 
             alphas (numpy array): Size (T,) array of float representing the
                 strength of the external input.
             f (numpy array): Size (N,T) array of floats representing firing
                 rate of each unit at each time step.
-            input_c (numpy array): Size (T, N_c) array of floats representing
-                the activation of context units over time.
-            target_indices (numpy array): size (N_c,) array containing the
-                indices of the target units.
+            network (OverlapNetwork): the network that generated the activity
         """
 
         width = 15
-        height = 7 if m is None else 10
+        height = 7
         fig = plt.figure(1)
-        self._make_main_grid(input_ext, alphas, f, input_c, target_indices, m)
+        self._make_main_grid(input_ext, alphas, f, network)
         fig.tight_layout()
         fig.set_size_inches(w=width, h=height)
         plt.show()
@@ -165,85 +161,71 @@ class PlotMaker(object):
 
         plt.show()
 
-    def _make_main_grid(
-            self, input_ext, alphas, f,
-            input_c=None, target_indices=None, m=None,
-            make_ring=False, network=None
-            ):
+    def _make_main_grid(self, input_ext, alphas, f, network):
         """
         Fills the current PyPlot object with the basic visualization needed:
         animal location, input/context strength, network activity.
 
         Args:
-            input_ext (numpy array): Size (T,) array of float radians representing
-                that indicates what the correct orientation theta_0 is.
+            input_ext (numpy array): Size (T, num_units) array of floats
+                representing the external stimulus to the episode network. 
             alphas (numpy array): Size (T,) array of float representing the
                 strength of the external input.
             f (numpy array): Size (N,T) array of floats representing firing
                 rate of each unit at each time step.
-            input_c (numpy array): Size (T, N_c) array of floats representing
-                the activation of context units over time.
-            target_indices (numpy array): size (N_c,) array containing the
-                normalized indices of the target units. e.g., index 0.5
-                corresponds to pi
+            network (OverlapNetwork): the network that generated the activity
         """
 
-        alphas = np.tile(alphas, (50, 1))
-        T = input_ext.size
-        gridrows = 9 if m is None else 13
-        gridcols = 12 
+        T = input_ext.shape[0]
+        for t, alpha in enumerate(alphas):
+            input_ext[t,:] *= alpha
+        gridrows = 9
+        gridcols = 12
+        rowspan = 3
+        colspan = 12
         gridspec.GridSpec(gridrows, gridcols)
-        colspan = gridcols - 2 if make_ring else gridcols
 
-        # Plot location 
-        plt.subplot2grid((gridrows, gridcols), (0,0), rowspan=4, colspan=colspan)
-        plt.plot(np.arange(T), input_ext, linewidth=2)
-        if (input_c is not None) and (target_indices is not None):
-            if input_c.size == T:
-                input_c = input_c.reshape((-1, 1))
-            for c_idx, activity_c in enumerate(input_c.T): # Iterate over context
-                on_time = np.where(activity_c > 0)
-                target_index = target_indices[c_idx]*2*pi
-                plt.axhline(
-                    target_index, np.min(on_time)/T, np.max(on_time)/T,
-                    linewidth=4, color="red"
-                    )
+        # Segregate the two networks
+        f_ep = f[network.J_episode_indices, :]
+        f_pl = f[network.J_place_indices, :]
+
+        # Plot input
+        plt.subplot2grid(
+            (gridrows, gridcols), (0,0), rowspan=rowspan, colspan=colspan
+            )
+        plt.imshow(input_ext.T[:network.num_separate_units,:])
         plt.xticks(np.arange(0, T, 100), np.arange(0, T, 100))
         plt.yticks(
             [0, pi, 2*pi], ["0", "Pi", "2Pi"]
             )
-        plt.ylabel("Location", fontsize=14)
+        plt.ylabel("Input to Unit", fontsize=14)
         plt.title("Activity over Time", fontsize=16)
-   
-        # Plot input strength
-        plt.subplot2grid((gridrows, gridcols), (4,0), colspan=colspan)
-        aximg1 = plt.imshow(alphas, aspect='auto')
-        plt.yticks([])
-        plt.xticks([])
-        plt.ylabel("Input\nStrength\n\n", fontsize=14)
-       
+      
         # Plot network firing rate activity
-        plt.subplot2grid((gridrows, gridcols), (5,0), rowspan=4, colspan=colspan)
+        plt.subplot2grid(
+            (gridrows, gridcols), (rowspan,0), rowspan=rowspan, colspan=colspan
+            )
         norm = mcolors.DivergingNorm(vmin=f.min(), vmax = f.max(), vcenter=0)
-        aximg2 = plt.imshow(
-            np.flip(f, axis=0), cmap=plt.cm.coolwarm, norm=norm, aspect='auto'
+        aximg_ep = plt.imshow(
+            np.flip(f_ep, axis=0), cmap=plt.cm.coolwarm, norm=norm, aspect='auto'
             )
         plt.yticks(
-            [0, f.shape[0]//2, f.shape[0] - 1], ["2Pi", "Pi", "0"]
+            [0, f_ep.shape[0]//2, f_ep.shape[0] - 1], ["2Pi", "Pi", "0"]
             )
-        plt.ylabel("f_\u03B8", fontsize=14)
+        plt.ylabel("Episode Network", fontsize=14)
 
         # Plot network current activity if it was provided
-        if m is not None:
-            plt.subplot2grid((gridrows, gridcols), (9,0), rowspan=4, colspan=colspan)
-            norm = mcolors.DivergingNorm(vmin=f.min(), vmax = f.max(), vcenter=0)
-            plt.imshow(
-                np.flip(m, axis=0), cmap=plt.cm.coolwarm, norm=norm, aspect='auto'
-                )
-            plt.yticks(
-                [0, m.shape[0]//2, m.shape[0] - 1], ["2Pi", "Pi", "0"]
-                )
-            plt.ylabel("m_\u03B8", fontsize=14)
+        plt.subplot2grid(
+            (gridrows, gridcols), (rowspan*2,0), rowspan=rowspan, colspan=colspan
+            )
+        norm = mcolors.DivergingNorm(vmin=f.min(), vmax = f.max(), vcenter=0)
+        aximg_pl = plt.imshow(
+            np.flip(f_pl, axis=0), cmap=plt.cm.coolwarm, norm=norm, aspect='auto'
+            )
+        plt.yticks(
+            [0, f_ep.shape[0]//2, f_ep.shape[0] - 1], ["2Pi", "Pi", "0"]
+            )
+        plt.ylabel("Place Network", fontsize=14)
 
         # Plots the seconds on the x axis of the last subplot
         plt.xticks(
@@ -251,20 +233,7 @@ class PlotMaker(object):
             )
         plt.xlabel("Seconds")
 
-        # Plot seed units if desired
-        ringaxs = []
-        if make_ring is True:
-            plt.subplot2grid(
-                (gridrows, gridcols), (0, colspan), rowspan=4, colspan=2
-                )
-            ringaxs.append(plt.gca())
-            plt.subplot2grid(
-                (gridrows, gridcols), (5, colspan), rowspan=4, colspan=2
-                )
-            ringaxs.append(plt.gca())
-            self._make_ring(network, ringaxs)
-
-        return aximg1, aximg2, ringaxs 
+        return aximg_ep, aximg_pl
 
     def _make_ring(self, network, ringaxs):
         for context in range(2):

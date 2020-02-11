@@ -53,7 +53,7 @@ class OverlapNetwork(object):
         self._init_J()
         self._init_J_interactions()
 
-    def simulate(self, input_ext, alphas=None):
+    def simulate(self, input_ext, alphas):
         """
         Simulates the behavior of the ring attractor over some period of time.
         The input only arrives to units involved in the episode network.
@@ -63,7 +63,7 @@ class OverlapNetwork(object):
                 the external stimulus. Here, the stimulus is some external cue
                 that indicates what the correct orientation theta_0 is.
             alphas (numpy array): Size (T,) array of float representing the
-                strength of the external input. Optional.
+                strength of the external input.
 
         Returns:
             m (numpy array): Size (N,T) array of floats representing current
@@ -72,19 +72,18 @@ class OverlapNetwork(object):
                 rate of each unit at each time step.
 
         Raises:
-            ValueError: If alphas is provided but is not the same size as input.
+            ValueError: If alphas is not the same size as input.
         """
  
-        if (alphas is not None) and (input_ext.shape[0] != alphas.size):
-            raise ValueError(
-                "If alphas is provided, it should be the same size as input."
-                )
+        if input_ext.shape[0] != alphas.size:
+            raise ValueError("Alphas should be the same size as input.")
         T = input_ext.shape[0]
         m = np.zeros((self.num_units, T)) # Current
         f = np.zeros((self.num_units, T)) # Firing rate
         m0 = 0.1*np.random.normal(0, 1, self.num_units)
+        m0[self.J_place_indices] = 0
         for t in range(T):
-            alpha_t = 0 if alphas is None else alphas[t]
+            alpha_t = alphas[t]
             if t == 0:
                 m_t, f_t = self._step(m0, input_ext[t], alpha_t)
             else:
@@ -108,15 +107,8 @@ class OverlapNetwork(object):
                 firing rates, respectively, of each unit in the next time step.
         """
 
-        if input_t == np.nan:
-            h_ext = np.zeros(self.num_units)
-            h_ext[:self.num_separate_units] = np.random.normal(
-                0, 1, self.num_separate_units
-                )
-            for i in self.shared_unit_map[0]:
-                J_idx = self.J_episode_indices[i]
-                h_ext[J_idx] = np.random.normal(0, 1)
-            h_ext *= alpha_t
+        if type(input_t) is np.ndarray:
+            h_ext = alpha_t*input_t
         else:
             h_ext = np.zeros(self.num_units)
             episode_input = alpha_t*np.cos(input_t - self.thetas)
@@ -153,12 +145,16 @@ class OverlapNetwork(object):
         """ Adds the interactions between networks to J matrix """
 
         # Currently hard-coded
-        episode_units = [0, pi]
-        place_units = [0, pi]
+        episode_units = [0, self.N//3, 2*self.N//3]
+        place_units = [0, self.N//3, 2*self.N//3]
         for idx, episode_unit in enumerate(episode_units):
             episode_unit = self.J_episode_indices[episode_unit]
-            place_unit = self.J_place_indices[place_unit]
-            self.J[episode_unit, place_unit] += (-self.J- + self.J2*1)
+            place_unit = self.J_place_indices[place_units[idx]]
+            weight_offset = (-self.J0 + self.J2)*2
+            self.J[place_unit, episode_unit] += weight_offset 
+            for i in np.arange(1, 2):
+                self.J[place_unit - i, episode_unit] += weight_offset 
+                self.J[place_unit + i, episode_unit] += weight_offset 
 
     def _init_J(self):
         """ Initializes the connectivity matrix J """
