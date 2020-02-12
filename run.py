@@ -22,8 +22,8 @@ def run_and_plot_network():
     input_ext, alphas = inputgen.get_noise_input(network)
     m, f = network.simulate(input_ext, alphas)
     pm.plot_main(input_ext, alphas, f, network)
-    plt.figure()
-    plt.imshow(network.J)
-    plt.show()
+#    plt.figure()
+#    plt.imshow(network.J)
+#    plt.show()
 
 run_and_plot_network()

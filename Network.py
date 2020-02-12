@@ -52,6 +52,7 @@ class OverlapNetwork(object):
         self._init_thetas()
         self._init_J()
         self._init_J_interactions()
+        self._init_episode_attractors()
 
     def simulate(self, input_ext, alphas):
         """
@@ -140,27 +141,6 @@ class OverlapNetwork(object):
         thetas = np.linspace(0, 2*pi, self.N)
         self.thetas = thetas
 
-    def _init_J_interactions(self):
-        """ Adds the interactions between networks to J matrix """
-
-        # Currently hard-coded
-        episode_units = [0, self.N//3, 2*self.N//3]
-        place_units = [0, self.N//3, 2*self.N//3]
-        episode_units = [0, self.N//2]
-        place_units = [0, self.N//2]
-        for idx, episode_unit in enumerate(episode_units):
-            episode_unit = self.J_episode_indices[episode_unit]
-            place_unit = self.J_place_indices[place_units[idx]]
-            weight_offset = (-self.J0 + self.J2)*2
-            self.J[place_unit, episode_unit] += weight_offset 
-            self.J[episode_unit, place_unit] += weight_offset
-            for i in np.arange(1, 3):
-                self.J[place_unit - i, episode_unit] += weight_offset 
-                self.J[place_unit + i, episode_unit] += weight_offset 
-                self.J[episode_unit - i, place_unit] += weight_offset
-                self.J[episode_unit + i, place_unit] += weight_offset
-        self.interacting_units = np.array([episode_units, place_units])
-
     def _init_J(self):
         """ Initializes the connectivity matrix J """
 
@@ -227,6 +207,7 @@ class OverlapNetwork(object):
             J_place_indices[place_unit] = int(curr_unit)
             curr_unit += 1
 
+        import pdb; pdb.set_trace()
         # Remove self-excitation
         for i in range(self.num_units):
             J[i,i] = 0
@@ -235,10 +216,55 @@ class OverlapNetwork(object):
         self.J_place_indices = J_place_indices
         self.J = J
 
+    def _init_J_interactions(self):
+        """ Adds the interactions between networks to J matrix """
+
+        # Currently hard-coded
+        episode_units = [0, self.N//3, 2*self.N//3]
+        place_units = [0, self.N//3, 2*self.N//3]
+        for idx, episode_unit in enumerate(episode_units):
+            episode_unit = self.J_episode_indices[episode_unit]
+            place_unit = self.J_place_indices[place_units[idx]]
+            weight_offset = (-self.J0 + self.J2)*2
+            self.J[place_unit, episode_unit] += weight_offset 
+            for i in np.arange(1, 3):
+                self.J[place_unit - i, episode_unit] += weight_offset 
+                self.J[place_unit + i, episode_unit] += weight_offset 
+        self.interacting_units = np.array([episode_units, place_units])
+
+    def _init_episode_attractors(self):
+        """ Tries to burn in stronger attractors in the episode network """
+
+        episode_attractors = [self.N//4, 3*self.N//4]
+        for attractor in episode_attractors:
+            for i in np.arange(-2, 3):
+                idx = attractor + i
+                sharp_cos = np.roll(
+                    self._get_sharp_cos(), idx - self.num_separate_units//2
+                    )
+                new_weights = -self.J0 + self.J2*sharp_cos 
+                self.J[:self.num_separate_units, idx] = new_weights
+                self.J[idx, idx] = 0
+                import pdb; pdb.set_trace()
+        self.episode_attractors = episode_attractors
+
     def _g(self, f_t):
         """
         Rectifies and saturates a given firing rate.
         """
 
         return np.clip(f_t, 0, 1)
+
+    def _get_sharp_cos(self):
+        """ Returns a sharp sinusoidal curve that drops off rapidly """
+
+        intra_peakwidth = 16 # Must be even
+        cos_bump = np.cos(pi-np.linspace(0, 2*pi, 3*intra_peakwidth))
+        flat_inhibition = np.ones(
+            (self.num_separate_units - intra_peakwidth*3)//2
+            )*-1
+        curve = np.concatenate(
+            (flat_inhibition, cos_bump, flat_inhibition)
+            )
+        return curve
 
