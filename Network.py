@@ -195,19 +195,19 @@ class OverlapNetwork(object):
             for j_shared in np.arange(1, self.num_shared_units - i):
                 j_shared_ep = self.shared_unit_map[0, j_shared]
                 j_shared_pl = self.shared_unit_map[1, j_shared]
-                weight_ep = -self.J0 + self.J2*np.cos(
+                weight_ep = self.J2*np.cos(
                     self.thetas[episode_unit] - self.thetas[j_shared_ep]
                     )
-                weight_place = -self.J0 + self.J2*np.cos(
+                weight_place = self.J2*np.cos(
                     self.thetas[place_unit] - self.thetas[j_shared_pl]
                     )
-                J[curr_unit, curr_unit + j_shared] += (weight_ep + weight_place)
-                J[curr_unit + j_shared, curr_unit] += (weight_ep + weight_place)
+                total_weight = -self.J0 + (weight_ep + weight_place)/2
+                J[curr_unit, curr_unit + j_shared] += total_weight 
+                J[curr_unit + j_shared, curr_unit] += total_weight 
             J_episode_indices[episode_unit] = int(curr_unit)
             J_place_indices[place_unit] = int(curr_unit)
             curr_unit += 1
 
-        import pdb; pdb.set_trace()
         # Remove self-excitation
         for i in range(self.num_units):
             J[i,i] = 0
@@ -224,12 +224,10 @@ class OverlapNetwork(object):
         place_units = [0, self.N//3, 2*self.N//3]
         for idx, episode_unit in enumerate(episode_units):
             episode_unit = self.J_episode_indices[episode_unit]
-            place_unit = self.J_place_indices[place_units[idx]]
             weight_offset = (-self.J0 + self.J2)*2
-            self.J[place_unit, episode_unit] += weight_offset 
-            for i in np.arange(1, 3):
-                self.J[place_unit - i, episode_unit] += weight_offset 
-                self.J[place_unit + i, episode_unit] += weight_offset 
+            for i in np.arange(-2, 3):
+                place_unit = (place_units[idx]+i)%self.N + self.num_separate_units
+                self.J[place_unit, episode_unit] += weight_offset 
         self.interacting_units = np.array([episode_units, place_units])
 
     def _init_episode_attractors(self):
@@ -237,15 +235,19 @@ class OverlapNetwork(object):
 
         episode_attractors = [self.N//4, 3*self.N//4]
         for attractor in episode_attractors:
-            for i in np.arange(-2, 3):
-                idx = attractor + i
-                sharp_cos = np.roll(
-                    self._get_sharp_cos(), idx - self.num_separate_units//2
-                    )
-                new_weights = -self.J0 + self.J2*sharp_cos 
-                self.J[:self.num_separate_units, idx] = new_weights
-                self.J[idx, idx] = 0
-                import pdb; pdb.set_trace()
+            for offset in np.arange(-2, 3):
+                for other_idx in range(self.N):
+                    attractor_idx = attractor + offset
+                    sharp_cos = np.roll(
+                        self._get_sharp_cos(), attractor_idx - self.N//2
+                        )
+                    new_weights = -self.J0 + self.J2*sharp_cos
+                    new_weight = new_weights[other_idx]
+                    other_idx = self.J_episode_indices[other_idx]
+                    attractor_idx = self.J_episode_indices[attractor_idx]
+                    if other_idx == attractor_idx:
+                        continue
+                    self.J[other_idx, attractor_idx] = new_weight
         self.episode_attractors = episode_attractors
 
     def _g(self, f_t):
@@ -260,9 +262,7 @@ class OverlapNetwork(object):
 
         intra_peakwidth = 16 # Must be even
         cos_bump = np.cos(pi-np.linspace(0, 2*pi, 3*intra_peakwidth))
-        flat_inhibition = np.ones(
-            (self.num_separate_units - intra_peakwidth*3)//2
-            )*-1
+        flat_inhibition = np.ones((self.N - intra_peakwidth*3)//2)*-1
         curve = np.concatenate(
             (flat_inhibition, cos_bump, flat_inhibition)
             )

@@ -17,13 +17,13 @@ pm = PlotMaker()
 def run_and_plot_network():
     N = 100
     K_inhib = 0.
-    network = OverlapNetwork(N=N, K_inhib=K_inhib)
+    network = OverlapNetwork(N=N, K_inhib=K_inhib, overlap=0.)
     inputgen = InputGenerator()
     input_ext, alphas = inputgen.get_noise_input(network)
     m, f = network.simulate(input_ext, alphas)
     pm.plot_main(input_ext, alphas, f, network)
-#    plt.figure()
-#    plt.imshow(network.J)
-#    plt.show()
+    plt.figure()
+    plt.imshow(network.J)
+    plt.show()
 
 run_and_plot_network()
