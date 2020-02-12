@@ -22,6 +22,6 @@ class InputGenerator(object):
             0, 1, input_ext[:, :network.num_separate_units].shape
             )
         alphas = np.zeros(T)
-        alphas[:T//3] = 0.6
+        alphas[:350] = 0.6
         return input_ext, alphas
 

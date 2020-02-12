@@ -81,7 +81,6 @@ class OverlapNetwork(object):
         m = np.zeros((self.num_units, T)) # Current
         f = np.zeros((self.num_units, T)) # Firing rate
         m0 = 0.1*np.random.normal(0, 1, self.num_units)
-        m0[self.J_place_indices] = 0
         for t in range(T):
             alpha_t = alphas[t]
             if t == 0:
@@ -147,14 +146,19 @@ class OverlapNetwork(object):
         # Currently hard-coded
         episode_units = [0, self.N//3, 2*self.N//3]
         place_units = [0, self.N//3, 2*self.N//3]
+        episode_units = [0, self.N//2]
+        place_units = [0, self.N//2]
         for idx, episode_unit in enumerate(episode_units):
             episode_unit = self.J_episode_indices[episode_unit]
             place_unit = self.J_place_indices[place_units[idx]]
             weight_offset = (-self.J0 + self.J2)*2
             self.J[place_unit, episode_unit] += weight_offset 
-            for i in np.arange(1, 2):
+            self.J[episode_unit, place_unit] += weight_offset
+            for i in np.arange(1, 3):
                 self.J[place_unit - i, episode_unit] += weight_offset 
                 self.J[place_unit + i, episode_unit] += weight_offset 
+                self.J[episode_unit - i, place_unit] += weight_offset
+                self.J[episode_unit + i, place_unit] += weight_offset
         self.interacting_units = np.array([episode_units, place_units])
 
     def _init_J(self):
