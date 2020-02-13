@@ -138,7 +138,7 @@ class OverlapNetwork(object):
     def _init_thetas(self):
         """ Initializes the preferred tuning within a network """
 
-        thetas = np.linspace(0, 2*pi, self.N)
+        thetas = np.linspace(0, 2*pi, self.N, endpoint=False)
         self.thetas = thetas
 
     def _init_J(self):
@@ -181,8 +181,8 @@ class OverlapNetwork(object):
                 weight = -self.J0 + self.J2*np.cos(
                     self.thetas[episode_unit] - self.thetas[j_ep]
                     )
-                J[curr_unit, J_idx] += weight
-                J[J_idx, curr_unit] += weight 
+                J[curr_unit, J_idx] = weight
+                J[J_idx, curr_unit] = weight 
             for j_place in range(self.N):
                 if j_place in self.shared_unit_map[1,:]:
                     continue
@@ -190,8 +190,8 @@ class OverlapNetwork(object):
                 weight = -self.J0 + self.J2*np.cos(
                     self.thetas[place_unit] - self.thetas[j_place]
                     )
-                J[curr_unit, J_idx] += weight
-                J[J_idx, curr_unit] += weight 
+                J[curr_unit, J_idx] = weight
+                J[J_idx, curr_unit] = weight 
             for j_shared in np.arange(1, self.num_shared_units - i):
                 j_shared_ep = self.shared_unit_map[0, j_shared]
                 j_shared_pl = self.shared_unit_map[1, j_shared]
@@ -202,8 +202,8 @@ class OverlapNetwork(object):
                     self.thetas[place_unit] - self.thetas[j_shared_pl]
                     )
                 total_weight = -self.J0 + (weight_ep + weight_place)/2
-                J[curr_unit, curr_unit + j_shared] += total_weight 
-                J[curr_unit + j_shared, curr_unit] += total_weight 
+                J[curr_unit, curr_unit + j_shared] = total_weight 
+                J[curr_unit + j_shared, curr_unit] = total_weight 
             J_episode_indices[episode_unit] = int(curr_unit)
             J_place_indices[place_unit] = int(curr_unit)
             curr_unit += 1
@@ -219,7 +219,6 @@ class OverlapNetwork(object):
     def _init_J_interactions(self):
         """ Adds the interactions between networks to J matrix """
 
-        # Currently hard-coded
         episode_units = [0, self.N//3, 2*self.N//3]
         place_units = [0, self.N//3, 2*self.N//3]
         for idx, episode_unit in enumerate(episode_units):

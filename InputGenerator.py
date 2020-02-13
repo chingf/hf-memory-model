@@ -8,7 +8,7 @@ class InputGenerator(object):
         """ Random noise to feed into the network, sustained by some time """
 
         # Generate input for one time step over all units
-        T = 500
+        T = 500 
         input_ext = np.zeros((T, network.num_units))
         input_ext[:,:network.num_separate_units] = np.random.normal(
             0, 1, input_ext[:, :network.num_separate_units].shape
