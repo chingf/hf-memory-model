@@ -30,7 +30,7 @@ class PlotMaker(object):
             network (OverlapNetwork): the network that generated the activity
         """
 
-        width = 15
+        width = 12
         height = 7
         fig = plt.figure(1)
         self._make_main_grid(input_ext, alphas, f, network)
