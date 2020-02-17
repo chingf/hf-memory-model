@@ -18,7 +18,7 @@ def run_and_plot_network():
     N = 100
     K_inhib = 0.
     network = OverlapNetwork(
-        N=N, K_inhib=K_inhib, overlap=0.8, add_feedback=False
+        N=N, K_inhib=K_inhib, overlap=0.1, add_feedback=True
         )
     inputgen = InputGenerator()
     input_ext, alphas = inputgen.get_noise_input(network)

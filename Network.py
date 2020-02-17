@@ -136,6 +136,7 @@ class OverlapNetwork(object):
             )
         shared_unit_map = np.vstack((shared_episode_units, shared_place_units))
         self.shared_unit_map = shared_unit_map
+        print(shared_unit_map)
         self.num_shared_units = num_shared_units
         self.num_separate_units = self.N - num_shared_units
         self.num_units = self.N*2 - num_shared_units
@@ -219,14 +220,14 @@ class OverlapNetwork(object):
         episode_units = [0, self.N//3, 2*self.N//3]
         place_units = [0, self.N//3, 2*self.N//3]
         self.interacting_units = np.array([episode_units, place_units])
-        interaction_support = np.arange(-16, 17)
+        interaction_support = np.arange(-24, 25)
         interaction_peakwidth = 20 
 
         for idx, episode_unit in enumerate(episode_units):
             episode_unit = self.J_episode_indices[episode_unit]
             for i in interaction_support:
                 weight_offset = self._get_weight_value(i, 0, interaction_peakwidth)
-                place_unit = (place_units[idx]+i)%self.N + self.num_separate_units
+                place_unit = self.J_place_indices[(place_units[idx]+i)%self.N]
                 self.J[place_unit, episode_unit] += weight_offset
 
         if self.add_feedback:
@@ -234,8 +235,7 @@ class OverlapNetwork(object):
                 place_unit = self.J_place_indices[place_unit]
                 for i in interaction_support:
                     weight_offset = self._get_weight_value(i, 0, interaction_peakwidth)
-                    weight_offset *= 1
-                    episode_unit = (episode_units[idx]+i)%self.N
+                    episode_unit = self.J_episode_indices[(episode_units[idx]+i)%self.N]
                     self.J[episode_unit, place_unit] += weight_offset
 
     def _init_episode_attractors(self):
