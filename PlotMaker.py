@@ -161,6 +161,26 @@ class PlotMaker(object):
 
         plt.show()
 
+    def plot_J(self, network):
+        """
+        Plots the J of the network with indices arranged by order on ring
+        """
+
+        full_J = np.zeros((network.N*2, network.N*2))*np.nan
+        for idx_i, i in enumerate(network.J_episode_indices):
+            for idx_j, j in enumerate(network.J_episode_indices):
+                full_J[idx_i, idx_j] = network.J[i, j]
+            for idx_j, j in enumerate(network.J_place_indices):
+                full_J[idx_i, idx_j + network.N] = network.J[i, j]
+        for idx_i, i in enumerate(network.J_place_indices):
+            for idx_j, j in enumerate(network.J_episode_indices):
+                full_J[idx_i + network.N, idx_j] = network.J[i, j]
+            for idx_j, j in enumerate(network.J_place_indices):
+                full_J[idx_i + network.N, idx_j + network.N] = network.J[i, j]
+        plt.figure()
+        plt.imshow(full_J)
+        plt.show()
+
     def _make_main_grid(self, input_ext, alphas, f, network):
         """
         Fills the current PyPlot object with the basic visualization needed:
@@ -194,7 +214,7 @@ class PlotMaker(object):
         plt.subplot2grid(
             (gridrows, gridcols), (0,0), rowspan=rowspan, colspan=colspan
             )
-        plt.imshow(input_ext.T[:network.num_separate_units,:])
+        plt.imshow(np.flip(input_ext[:,network.J_episode_indices].T, axis=0))
         plt.xticks(np.arange(0, T, 100), np.arange(0, T, 100))
         plt.yticks(
             [0, pi, 2*pi], ["0", "Pi", "2Pi"]
@@ -213,7 +233,6 @@ class PlotMaker(object):
             plt.axhline(attractor_unit, color="green", linewidth=0.5)
         plt.axvline(0, color="gray")
         plt.yticks([])
-        plt.xticks([])
         plt.subplot2grid(
             (gridrows, gridcols), (rowspan,0), rowspan=rowspan, colspan=colspan
             )
@@ -236,7 +255,6 @@ class PlotMaker(object):
             plt.axhline(interacting_unit, color="red", linewidth=0.5)
         plt.axvline(0, color="gray")
         plt.yticks([])
-        plt.xticks([])
         plt.subplot2grid(
             (gridrows, gridcols), (rowspan*2,0), rowspan=rowspan, colspan=colspan
             )

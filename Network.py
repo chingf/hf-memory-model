@@ -129,14 +129,15 @@ class OverlapNetwork(object):
 
         num_shared_units = int(self.N*self.overlap)
         shared_episode_units = np.random.choice(
-            self.N, num_shared_units, replace=False
+            range(self.N),
+            num_shared_units, replace=False
             )
         shared_place_units =  np.random.choice(
-            self.N, num_shared_units, replace=False
+            range(self.N),
+            num_shared_units, replace=False
             )
         shared_unit_map = np.vstack((shared_episode_units, shared_place_units))
         self.shared_unit_map = shared_unit_map
-        print(shared_unit_map)
         self.num_shared_units = num_shared_units
         self.num_separate_units = self.N - num_shared_units
         self.num_units = self.N*2 - num_shared_units
@@ -155,12 +156,13 @@ class OverlapNetwork(object):
         J_episode_indices = np.zeros(self.N).astype(int)
         J_place_indices = np.zeros(self.N).astype(int)
         curr_unit = 0
+        peakwidth = int(self.N*0.3)
 
         # Fill in unshared episode units
         for i in range(self.N):
             if i in self.shared_unit_map[0,:]:
                 continue
-            weights = self._get_weight_vector(i)
+            weights = self._get_weight_vector(i, peakwidth)
             weights = np.delete(weights, self.shared_unit_map[0,:])
             J[curr_unit, :num_separate_units] = weights
             J_episode_indices[i] = int(curr_unit)
@@ -170,7 +172,7 @@ class OverlapNetwork(object):
         for i in range(self.N):
             if i in self.shared_unit_map[1,:]:
                 continue
-            weights = self._get_weight_vector(i)
+            weights = self._get_weight_vector(i, peakwidth)
             weights = np.delete(weights, self.shared_unit_map[1,:])
             J[curr_unit, num_separate_units:num_separate_units*2] = weights 
             J_place_indices[i] = int(curr_unit)
@@ -184,22 +186,24 @@ class OverlapNetwork(object):
                 if j_ep in self.shared_unit_map[0,:]:
                     continue
                 J_idx = J_episode_indices[j_ep]
-                weight = self._get_weight_value(episode_unit, j_ep)
+                weight = self._get_weight_value(episode_unit, j_ep, peakwidth)
                 J[curr_unit, J_idx] = weight
                 J[J_idx, curr_unit] = weight 
             for j_place in range(self.N):
                 if j_place in self.shared_unit_map[1,:]:
                     continue
                 J_idx = J_place_indices[j_place]
-                weight = self._get_weight_value(place_unit, j_place)
+                weight = self._get_weight_value(place_unit, j_place, peakwidth)
                 J[curr_unit, J_idx] = weight
                 J[J_idx, curr_unit] = weight 
             for j_shared in np.arange(1, self.num_shared_units - i):
                 j_shared_ep = self.shared_unit_map[0, j_shared]
                 j_shared_pl = self.shared_unit_map[1, j_shared]
-                weight_ep = self._get_weight_value(episode_unit, j_shared_ep)
-                weight_place = self._get_weight_value(place_unit, j_shared_pl)
-                total_weight = -self.J0 + (weight_ep + weight_place)/2
+                weight_ep = self._get_weight_value(episode_unit, j_shared_ep, peakwidth)
+                weight_pl = self._get_weight_value(place_unit, j_shared_pl, peakwidth)
+                ep_contrib = 0.5
+                pl_contrib = 1 - ep_contrib
+                total_weight = -self.J0 + ep_contrib*weight_ep + pl_contrib*weight_pl
                 J[curr_unit, curr_unit + j_shared] = total_weight 
                 J[curr_unit + j_shared, curr_unit] = total_weight 
             J_episode_indices[episode_unit] = int(curr_unit)
@@ -217,26 +221,35 @@ class OverlapNetwork(object):
     def _init_J_interactions(self):
         """ Adds the interactions between networks to J matrix """
 
-        episode_units = [0, self.N//3, 2*self.N//3]
-        place_units = [0, self.N//3, 2*self.N//3]
+        episode_units = [
+            0, 1, self.N - 1, 2, self.N - 2,
+            self.N//3 - 1, self.N//3, self.N//3 + 1, self.N//3 - 2, self.N//3 + 2,
+            2*self.N//3 - 1, 2*self.N//3, 2*self.N//3 + 1, 2*self.N//3 + 2, 2*self.N//3 - 2
+            ]
+        place_units = [i for i in episode_units]
+
+#        episode_units = [0, self.N//3, 2*self.N//3]
+#        place_units = [0, self.N//3, 2*self.N//3]
         self.interacting_units = np.array([episode_units, place_units])
-        interaction_support = np.arange(-24, 25)
-        interaction_peakwidth = 20 
+        interaction_support = np.arange(-self.N//2, self.N//2 + 1)
+        interaction_peakwidth = int(self.N*0.3)
 
         for idx, episode_unit in enumerate(episode_units):
             episode_unit = self.J_episode_indices[episode_unit]
             for i in interaction_support:
                 weight_offset = self._get_weight_value(i, 0, interaction_peakwidth)
+                weight_offset *= 2
                 place_unit = self.J_place_indices[(place_units[idx]+i)%self.N]
-                self.J[place_unit, episode_unit] += weight_offset
+                self.J[place_unit, episode_unit] = weight_offset
 
         if self.add_feedback:
             for idx, place_unit in enumerate(place_units):
                 place_unit = self.J_place_indices[place_unit]
                 for i in interaction_support:
                     weight_offset = self._get_weight_value(i, 0, interaction_peakwidth)
+                    weight_offset *= 2
                     episode_unit = self.J_episode_indices[(episode_units[idx]+i)%self.N]
-                    self.J[episode_unit, place_unit] += weight_offset
+                    self.J[episode_unit, place_unit] = weight_offset
 
     def _init_episode_attractors(self):
         """ Tries to burn in stronger attractors in the episode network """
@@ -250,7 +263,8 @@ class OverlapNetwork(object):
                 for other_idx in range(self.N):
                     attractor_idx = attractor + offset
                     sharp_cos = np.roll(
-                        self._get_sharp_cos(), attractor_idx - self.N//2
+                        self._get_sharp_cos(int(self.N*0.18)),
+                        attractor_idx - self.N//2,
                         )
                     new_weights = -self.J0 + self.J2*sharp_cos
                     new_weight = new_weights[other_idx]
