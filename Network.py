@@ -127,13 +127,19 @@ class OverlapNetwork(object):
     def _init_shared_units(self):
         """ Determines which units are shared between the two networks """
 
+        episode_units = [
+            0, 1, self.N - 1, 2, self.N - 2,
+            self.N//3 - 1, self.N//3, self.N//3 + 1, self.N//3 - 2, self.N//3 + 2,
+            2*self.N//3 - 1, 2*self.N//3, 2*self.N//3 + 1, 2*self.N//3 + 2, 2*self.N//3 - 2
+            ]
+        episode_units = [0, self.N//3, 2*self.N//3]
         num_shared_units = int(self.N*self.overlap)
         shared_episode_units = np.random.choice(
-            range(self.N),
+            [i for i in range(self.N) if i not in episode_units],
             num_shared_units, replace=False
             )
         shared_place_units =  np.random.choice(
-            range(self.N),
+            [i for i in range(self.N) if i not in episode_units],
             num_shared_units, replace=False
             )
         shared_unit_map = np.vstack((shared_episode_units, shared_place_units))
@@ -227,10 +233,8 @@ class OverlapNetwork(object):
             2*self.N//3 - 1, 2*self.N//3, 2*self.N//3 + 1, 2*self.N//3 + 2, 2*self.N//3 - 2
             ]
         place_units = [i for i in episode_units]
-
-#        episode_units = [0, self.N//3, 2*self.N//3]
-#        place_units = [0, self.N//3, 2*self.N//3]
         self.interacting_units = np.array([episode_units, place_units])
+
         interaction_support = np.arange(-self.N//2, self.N//2 + 1)
         interaction_peakwidth = int(self.N*0.3)
 
@@ -238,7 +242,8 @@ class OverlapNetwork(object):
             episode_unit = self.J_episode_indices[episode_unit]
             for i in interaction_support:
                 weight_offset = self._get_weight_value(i, 0, interaction_peakwidth)
-                weight_offset *= 2
+                scale = 2 if weight_offset > 0 else 1
+                weight_offset *= scale
                 place_unit = self.J_place_indices[(place_units[idx]+i)%self.N]
                 self.J[place_unit, episode_unit] = weight_offset
 
@@ -247,9 +252,12 @@ class OverlapNetwork(object):
                 place_unit = self.J_place_indices[place_unit]
                 for i in interaction_support:
                     weight_offset = self._get_weight_value(i, 0, interaction_peakwidth)
-                    weight_offset *= 2
+                    scale = 2 if weight_offset > 0 else 1
+                    weight_offset *= scale
                     episode_unit = self.J_episode_indices[(episode_units[idx]+i)%self.N]
                     self.J[episode_unit, place_unit] = weight_offset
+        for i in range(self.J.shape[0]):
+            self.J[i,i] = 0
 
     def _init_episode_attractors(self):
         """ Tries to burn in stronger attractors in the episode network """
@@ -300,3 +308,32 @@ class OverlapNetwork(object):
             )
         return curve
 
+class VMNetwork(OverlapNetwork):
+    def __init__(
+            self, N, K_inhib, overlap=0,
+            add_feedback=False, add_attractor=False, gain=1, kappa=1
+            ):
+        self.N = N
+        self.K_inhib = K_inhib
+        self.overlap = overlap
+        self.add_feedback = add_feedback
+        self.add_attractor = add_attractor
+        self.gain = gain
+        self.kappa = kappa
+        self.J0 = self.base_J0/N
+        self.J2 = self.base_J2/N
+        self._init_shared_units()
+        self._init_thetas()
+        self._init_J()
+        self._init_J_interactions()
+        self._init_episode_attractors()
+
+    def _get_sharp_cos(self, peakwidth=18):
+        """ Returns a sharp sinusoidal curve that drops off rapidly """
+
+        mu = 0
+        x = np.linspace(-pi, pi, self.N)
+        curve = np.exp(self.kappa*np.cos(x-mu))/(2*pi*np.i0(self.kappa))
+        curve -= np.max(curve)/2.
+        curve *= self.gain
+        return curve

@@ -17,7 +17,7 @@ pm = PlotMaker()
 def run_and_plot_network(overlap=0.):
     np.random.seed(1)
     N = 100 
-    K_inhib = 0.
+    K_inhib = 0
     network = OverlapNetwork(
         N=N, K_inhib=K_inhib, overlap=overlap, add_feedback=True
         )
@@ -27,5 +27,5 @@ def run_and_plot_network(overlap=0.):
     pm.plot_main(input_ext, alphas, f, network)
     pm.plot_J(network)
 
-for o in [0.8]:
+for o in [0.4]:
     run_and_plot_network(o)
