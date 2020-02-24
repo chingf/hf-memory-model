@@ -26,21 +26,31 @@ class OverlapNetwork(object):
             represent neurons with preferred tuning at 2pi/i radians.
         K_inhib (float): Value of global inhibition
         J (numpy array): (N, N) array of floats representing the connectivity
-            between units. V_ij will represent the connection from j to i.
+            between units. V_ij will represent the connection from j to i
         thetas (numpy array): (N,2) array of float radians. The value at i,j
             represents the preferred tuning of unit i in network j
-        num_units
-        num_shared_units
-        num_separate_units
-        shared_unit_map
-        J_episode_indices
-        J_place_indices
-        interacting_units
+        num_units (int): number of total unique units over both networks
+        num_shared_units (int): number of unique units in both networks
+        num_separate_units (int): number of unique units in only one network
+        shared_unit_map (numpy array): (2, num_shared_units) array of ints.
+            The value at (0,j) is the unit from the episode network that is at
+            position (1,j) in the place network.
+        J_episode_indices (numpy array): (N,) array of ints. The value at
+            position (i,) maps the ith unit of the episode network to the
+            corresponding index in the J matrix.
+        J_place_indices (numpy array): (N,) array of ints. The value at
+            position (i,) maps the ith unit of the palce network to the
+            corresponding index in the J matrix.
+        interacting_units (numpy array): (2, M) array of ints. Indicates
+            unidirectional (or bidirectional if feedback is enabled) connections
+            between the episode and place network.
     """
 
     base_J0 = 0.3 
     base_J2 = 5.
     dt = 0.1
+    kappa = 4
+    vonmises_gain = 3.25
 
     def __init__(
             self, N, K_inhib, overlap=0,
@@ -59,45 +69,7 @@ class OverlapNetwork(object):
         self._init_J_interactions()
         self._init_episode_attractors()
 
-    def simulate(self, input_ext, alphas):
-        """
-        Simulates the behavior of the ring attractor over some period of time.
-        The input only arrives to units involved in the episode network.
-    
-        Args:
-            input_ext (numpy array): Size (T,) array of float radians representing
-                the external stimulus. Here, the stimulus is some external cue
-                that indicates what the correct orientation theta_0 is.
-            alphas (numpy array): Size (T,) array of float representing the
-                strength of the external input.
-
-        Returns:
-            m (numpy array): Size (N,T) array of floats representing current
-                of each unit at each time step
-            f (numpy array): Size (N,T) array of floats representing firing
-                rate of each unit at each time step.
-
-        Raises:
-            ValueError: If alphas is not the same size as input.
-        """
- 
-        if input_ext.shape[0] != alphas.size:
-            raise ValueError("Alphas should be the same size as input.")
-        T = input_ext.shape[0]
-        m = np.zeros((self.num_units, T)) # Current
-        f = np.zeros((self.num_units, T)) # Firing rate
-        m0 = 0.1*np.random.normal(0, 1, self.num_units)
-        for t in range(T):
-            alpha_t = alphas[t]
-            if t == 0:
-                m_t, f_t = self._step(m0, input_ext[t], alpha_t)
-            else:
-                m_t, f_t = self._step(m[:, t-1], input_ext[t], alpha_t)
-            m[:,t] = m_t
-            f[:,t] = f_t
-        return m, f
-
-    def _step(self, prev_m, input_t, alpha_t):
+    def step(self, prev_m, input_t, alpha_t):
         """
         Steps the network forward one time step. Evolves the current network
         activity according to the defined first-order dynamics.
@@ -130,7 +102,8 @@ class OverlapNetwork(object):
         episode_units = [
             0, 1, self.N - 1, 2, self.N - 2,
             self.N//3 - 1, self.N//3, self.N//3 + 1, self.N//3 - 2, self.N//3 + 2,
-            2*self.N//3 - 1, 2*self.N//3, 2*self.N//3 + 1, 2*self.N//3 + 2, 2*self.N//3 - 2
+            2*self.N//3 - 1, 2*self.N//3, 2*self.N//3 + 1,
+            2*self.N//3 + 2, 2*self.N//3 - 2
             ]
         episode_units = [0, self.N//3, 2*self.N//3]
         num_shared_units = int(self.N*self.overlap)
@@ -147,6 +120,7 @@ class OverlapNetwork(object):
         self.num_shared_units = num_shared_units
         self.num_separate_units = self.N - num_shared_units
         self.num_units = self.N*2 - num_shared_units
+        np.random.seed()
 
     def _init_thetas(self):
         """ Initializes the preferred tuning within a network """
@@ -162,13 +136,12 @@ class OverlapNetwork(object):
         J_episode_indices = np.zeros(self.N).astype(int)
         J_place_indices = np.zeros(self.N).astype(int)
         curr_unit = 0
-        peakwidth = int(self.N*0.3)
 
         # Fill in unshared episode units
         for i in range(self.N):
             if i in self.shared_unit_map[0,:]:
                 continue
-            weights = self._get_weight_vector(i, peakwidth)
+            weights = self._get_weight_vector(i)
             weights = np.delete(weights, self.shared_unit_map[0,:])
             J[curr_unit, :num_separate_units] = weights
             J_episode_indices[i] = int(curr_unit)
@@ -178,7 +151,7 @@ class OverlapNetwork(object):
         for i in range(self.N):
             if i in self.shared_unit_map[1,:]:
                 continue
-            weights = self._get_weight_vector(i, peakwidth)
+            weights = self._get_weight_vector(i)
             weights = np.delete(weights, self.shared_unit_map[1,:])
             J[curr_unit, num_separate_units:num_separate_units*2] = weights 
             J_place_indices[i] = int(curr_unit)
@@ -192,24 +165,22 @@ class OverlapNetwork(object):
                 if j_ep in self.shared_unit_map[0,:]:
                     continue
                 J_idx = J_episode_indices[j_ep]
-                weight = self._get_weight_value(episode_unit, j_ep, peakwidth)
+                weight = self._get_weight_value(episode_unit, j_ep)
                 J[curr_unit, J_idx] = weight
                 J[J_idx, curr_unit] = weight 
             for j_place in range(self.N):
                 if j_place in self.shared_unit_map[1,:]:
                     continue
                 J_idx = J_place_indices[j_place]
-                weight = self._get_weight_value(place_unit, j_place, peakwidth)
+                weight = self._get_weight_value(place_unit, j_place)
                 J[curr_unit, J_idx] = weight
                 J[J_idx, curr_unit] = weight 
             for j_shared in np.arange(1, self.num_shared_units - i):
                 j_shared_ep = self.shared_unit_map[0, j_shared]
                 j_shared_pl = self.shared_unit_map[1, j_shared]
-                weight_ep = self._get_weight_value(episode_unit, j_shared_ep, peakwidth)
-                weight_pl = self._get_weight_value(place_unit, j_shared_pl, peakwidth)
-                ep_contrib = 0.5
-                pl_contrib = 1 - ep_contrib
-                total_weight = -self.J0 + ep_contrib*weight_ep + pl_contrib*weight_pl
+                weight_ep = self._get_weight_value(episode_unit, j_shared_ep)
+                weight_pl = self._get_weight_value(place_unit, j_shared_pl)
+                total_weight = -self.J0 + 0.5*(weight_ep + weight_pl)
                 J[curr_unit, curr_unit + j_shared] = total_weight 
                 J[curr_unit + j_shared, curr_unit] = total_weight 
             J_episode_indices[episode_unit] = int(curr_unit)
@@ -230,19 +201,18 @@ class OverlapNetwork(object):
         episode_units = [
             0, 1, self.N - 1, 2, self.N - 2,
             self.N//3 - 1, self.N//3, self.N//3 + 1, self.N//3 - 2, self.N//3 + 2,
-            2*self.N//3 - 1, 2*self.N//3, 2*self.N//3 + 1, 2*self.N//3 + 2, 2*self.N//3 - 2
+            2*self.N//3 - 1, 2*self.N//3, 2*self.N//3 + 1,
+            2*self.N//3 + 2, 2*self.N//3 - 2
             ]
         place_units = [i for i in episode_units]
         self.interacting_units = np.array([episode_units, place_units])
-
         interaction_support = np.arange(-self.N//2, self.N//2 + 1)
-        interaction_peakwidth = int(self.N*0.3)
 
         for idx, episode_unit in enumerate(episode_units):
             episode_unit = self.J_episode_indices[episode_unit]
             for i in interaction_support:
-                weight_offset = self._get_weight_value(i, 0, interaction_peakwidth)
-                scale = 2 if weight_offset > 0 else 1
+                weight_offset = self._get_weight_value(i, 0)
+                scale = 2
                 weight_offset *= scale
                 place_unit = self.J_place_indices[(place_units[idx]+i)%self.N]
                 self.J[place_unit, episode_unit] = weight_offset
@@ -251,8 +221,8 @@ class OverlapNetwork(object):
             for idx, place_unit in enumerate(place_units):
                 place_unit = self.J_place_indices[place_unit]
                 for i in interaction_support:
-                    weight_offset = self._get_weight_value(i, 0, interaction_peakwidth)
-                    scale = 2 if weight_offset > 0 else 1
+                    weight_offset = self._get_weight_value(i, 0)
+                    scale = 2
                     weight_offset *= scale
                     episode_unit = self.J_episode_indices[(episode_units[idx]+i)%self.N]
                     self.J[episode_unit, place_unit] = weight_offset
@@ -290,50 +260,20 @@ class OverlapNetwork(object):
 
         return np.clip(f_t, 0, 1)
 
-    def _get_weight_vector(self, i, peakwidth=30):
-        sharp_cos = np.roll(self._get_sharp_cos(peakwidth), i - self.N//2)
+    def _get_weight_vector(self, i):
+        sharp_cos = np.roll(self._get_sharp_cos(), i - self.N//2)
         return -self.J0 + self.J2*sharp_cos
 
-    def _get_weight_value(self, i ,j, peakwidth=30):
-        sharp_cos = np.roll(self._get_sharp_cos(peakwidth), i - self.N//2)
+    def _get_weight_value(self, i ,j):
+        sharp_cos = np.roll(self._get_sharp_cos(), i - self.N//2)
         return self.J0 + self.J2*sharp_cos[j]
 
-    def _get_sharp_cos(self, peakwidth=18):
-        """ Returns a sharp sinusoidal curve that drops off rapidly """
-
-        cos_bump = np.cos(pi-np.linspace(0, 2*pi, 3*peakwidth, endpoint=False))
-        flat_inhibition = np.ones((self.N - peakwidth*3)//2)*-1
-        curve = np.concatenate(
-            (flat_inhibition, cos_bump, flat_inhibition)
-            )
-        return curve
-
-class VMNetwork(OverlapNetwork):
-    def __init__(
-            self, N, K_inhib, overlap=0,
-            add_feedback=False, add_attractor=False, gain=1, kappa=1
-            ):
-        self.N = N
-        self.K_inhib = K_inhib
-        self.overlap = overlap
-        self.add_feedback = add_feedback
-        self.add_attractor = add_attractor
-        self.gain = gain
-        self.kappa = kappa
-        self.J0 = self.base_J0/N
-        self.J2 = self.base_J2/N
-        self._init_shared_units()
-        self._init_thetas()
-        self._init_J()
-        self._init_J_interactions()
-        self._init_episode_attractors()
-
-    def _get_sharp_cos(self, peakwidth=18):
+    def _get_sharp_cos(self):
         """ Returns a sharp sinusoidal curve that drops off rapidly """
 
         mu = 0
-        x = np.linspace(-pi, pi, self.N)
+        x = np.linspace(-pi, pi, self.N, endpoint=False)
         curve = np.exp(self.kappa*np.cos(x-mu))/(2*pi*np.i0(self.kappa))
         curve -= np.max(curve)/2.
-        curve *= self.gain
+        curve *= self.vonmises_gain
         return curve
