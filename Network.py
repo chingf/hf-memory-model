@@ -50,19 +50,21 @@ class OverlapNetwork(object):
     base_J2 = 5.
     dt = 0.1
     kappa = 4
-    vonmises_gain = 3.25
+    vonmises_gain = 3.
 
     def __init__(
-            self, N, K_inhib, overlap=0,
+            self, N, K_inhib, overlap=0, num_interactions=3,
             add_feedback=False, add_attractor=False
             ):
         self.N = N
         self.K_inhib = K_inhib
         self.overlap = overlap
+        self.num_interactions = num_interactions
         self.add_feedback = add_feedback
         self.add_attractor = add_attractor
         self.J0 = self.base_J0/N
         self.J2 = self.base_J2/N
+        self._init_interacting_units()
         self._init_shared_units()
         self._init_thetas()
         self._init_J()
@@ -96,16 +98,27 @@ class OverlapNetwork(object):
         m_t = prev_m + self.dt*dmdt 
         return m_t, f_t
 
+    def _init_interacting_units(self):
+        """ Determines which units connect between the two networks """
+
+        if self.num_interactions == 0:
+            self.interacting_units = np.array([[], []])
+        else:
+            center_units = np.linspace(
+                0, self.N, self.num_interactions, endpoint=False
+                )
+            episode_units = []
+            place_units = []
+            for c in center_units:
+                neighbors = [int(c + i)%self.N for i in np.arange(-2, 3)]
+                episode_units.extend(neighbors)
+                place_units.extend(neighbors)
+            self.interacting_units = np.array([episode_units, place_units])
+
     def _init_shared_units(self):
         """ Determines which units are shared between the two networks """
 
-        episode_units = [
-            0, 1, self.N - 1, 2, self.N - 2,
-            self.N//3 - 1, self.N//3, self.N//3 + 1, self.N//3 - 2, self.N//3 + 2,
-            2*self.N//3 - 1, 2*self.N//3, 2*self.N//3 + 1,
-            2*self.N//3 + 2, 2*self.N//3 - 2
-            ]
-        episode_units = [0, self.N//3, 2*self.N//3]
+        episode_units = self.interacting_units[0] 
         num_shared_units = int(self.N*self.overlap)
         shared_episode_units = np.random.choice(
             [i for i in range(self.N) if i not in episode_units],
@@ -198,14 +211,8 @@ class OverlapNetwork(object):
     def _init_J_interactions(self):
         """ Adds the interactions between networks to J matrix """
 
-        episode_units = [
-            0, 1, self.N - 1, 2, self.N - 2,
-            self.N//3 - 1, self.N//3, self.N//3 + 1, self.N//3 - 2, self.N//3 + 2,
-            2*self.N//3 - 1, 2*self.N//3, 2*self.N//3 + 1,
-            2*self.N//3 + 2, 2*self.N//3 - 2
-            ]
-        place_units = [i for i in episode_units]
-        self.interacting_units = np.array([episode_units, place_units])
+        episode_units = self.interacting_units[0]
+        place_units = self.interacting_units[1]
         interaction_support = np.arange(-self.N//2, self.N//2 + 1)
 
         for idx, episode_unit in enumerate(episode_units):

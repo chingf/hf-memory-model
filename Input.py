@@ -65,30 +65,38 @@ class BehavioralInput(Input):
         - Move to seed location (4 sec)
     """
 
-    def __init__(self, pre_seed_loc=pi):
+    def __init__(self, pre_seed_loc=3*pi/2):
         self.T = 300
         self.pre_seed_loc = pre_seed_loc 
         self.t = 0
         self.target_seed = np.nan
+        self.event_times = [12, 16, 18, 27]
+
+    def set_current_activity(self, f):
+        if self.t <= (self.event_times[1]*10) + 1:
+            self.f = f
 
     def get_inputs(self):
+        T1, T2, T3, T4 = self.event_times
         t = self.t
-        if self.to_seconds(t) < 15: # Free navigation to loc
-            loc_t = ((t/150.) * (2*pi + self.pre_seed_loc)) % (2*pi)
+        if self.to_seconds(t) < T1: # Free navigation to loc
+            loc_t = ((t/(T1*10)) * (2*pi + self.pre_seed_loc)) % (2*pi)
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
             alpha_t = 0.6
-        elif self.to_seconds(t) < 17: # Query for seed
+        elif self.to_seconds(t) < T3: # Query for seed
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_episode_indices] = np.random.normal(
                 0, 1, self.network.N
                 )
-            alpha_t = 0.6
-        elif self.to_seconds(t) < 21: # Navigation to seed
+            alpha_t = 0.6 if t < (T2*10) else 0
+        elif self.to_seconds(t) < T4: # Navigation to seed
             if np.isnan(self.target_seed):
                 self.set_seed()
-            navigation_distance = self.target_seed - self.pre_seed_loc
-            loc_t = ((t - 120)/160)*navigation_distance + self.pre_seed_loc
+            nav_start = T3*10 
+            nav_time = (T4 - T3) *10
+            nav_distance = self.target_seed - self.pre_seed_loc
+            loc_t = ((t - nav_start)/nav_time)*nav_distance + self.pre_seed_loc
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
             alpha_t = 0.6

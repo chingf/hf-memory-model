@@ -16,9 +16,10 @@ pm = PlotMaker()
 
 def run_and_plot_network(overlap=0.):
     N = 100 
-    K_inhib = 0
+    K_inhib = 0.
     network = OverlapNetwork(
-        N=N, K_inhib=K_inhib, overlap=overlap, add_feedback=True
+        N=N, K_inhib=K_inhib, overlap=overlap, add_feedback=True,
+        num_interactions=2
         )
     inputgen = BehavioralInput()
     sim = Simulator(network, inputgen)
@@ -26,5 +27,5 @@ def run_and_plot_network(overlap=0.):
     pm.plot_main(sim, f)
     pm.plot_J(sim)
 
-for o in [0.3]:
+for o in [0.4]:
     run_and_plot_network(o)

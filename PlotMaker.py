@@ -83,8 +83,8 @@ class PlotMaker(object):
         for t, alpha in enumerate(alphas):
             inputs[t,:] *= alpha
         inputs = np.concatenate((
-            inputs[:, network.J_episode_indices],
-            inputs[:, network.J_place_indices]
+            inputs[:, network.J_place_indices],
+            inputs[:, network.J_episode_indices]
             ), axis=1)
         plt.subplot2grid(
             (gridrows, gridcols), (0,0), rowspan=rowspan, colspan=colspan
