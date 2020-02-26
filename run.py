@@ -20,9 +20,9 @@ def run_and_plot_overlapnet(overlap=0.):
     K_inhib = 0.
     network = OverlapNetwork(
         N=N, K_inhib=K_inhib, overlap=overlap, add_feedback=True,
-        num_interactions=3
+        num_internetwork_connections=2, num_ep_modules=3
         )
-    inputgen = NoisyInput()
+    inputgen = BehavioralInput()
     sim = Simulator(network, inputgen)
     m, f = sim.simulate()
     pm.plot_main(sim, f)
@@ -41,5 +41,6 @@ def run_and_plot_wtanet():
     plt.imshow(network.J)
     plt.show()
 
-for o in [0.4]:
-    run_and_plot_wtanet()
+for o in [0, 0, 0.2, 0.2, 0.4, 0.4, 0.5, 0.5]:
+    print("Overlap: %d"%o)
+    run_and_plot_overlapnet(o)

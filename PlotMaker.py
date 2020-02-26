@@ -104,10 +104,8 @@ class PlotMaker(object):
             (gridrows,gridcols), (rowspan,colspan), rowspan=rowspan, colspan=2
             )
         plt.plot(f_ep[:,-1], np.arange(N))
-        for interacting_unit in network.interacting_units[0]:
-            plt.axhline(interacting_unit, color="red", linewidth=0.5)
-        for attractor_unit in network.episode_attractors:
-            plt.axhline(attractor_unit, color="green", linewidth=0.5)
+        for internetwork_unit in network.internetwork_units[0]:
+            plt.axhline(internetwork_unit, color="red", linewidth=0.5)
         plt.axvline(0, color="gray")
         plt.yticks([])
         plt.subplot2grid(
@@ -128,8 +126,8 @@ class PlotMaker(object):
             (gridrows,gridcols), (rowspan*2,colspan), rowspan=rowspan, colspan=2
             )
         plt.plot(f_pl[:,-1], np.arange(N))
-        for interacting_unit in network.interacting_units[1]:
-            plt.axhline(interacting_unit, color="red", linewidth=0.5)
+        for internetwork_unit in network.internetwork_units[1]:
+            plt.axhline(internetwork_unit, color="red", linewidth=0.5)
         plt.axvline(0, color="gray")
         plt.yticks([])
         plt.subplot2grid(
