@@ -240,30 +240,6 @@ class OverlapNetwork(object):
         for i in range(self.J.shape[0]):
             self.J[i,i] = 0
 
-    def _init_episode_attractors(self):
-        """ Tries to burn in stronger attractors in the episode network """
-
-        if self.add_attractor is False:
-            self.episode_attractors = []
-            return
-        episode_attractors = [self.N//4, 3*self.N//4]
-        for attractor in episode_attractors:
-            for offset in np.arange(-3, 4):
-                for other_idx in range(self.N):
-                    attractor_idx = attractor + offset
-                    sharp_cos = np.roll(
-                        self._get_sharp_cos(int(self.N*0.18)),
-                        attractor_idx - self.N//2,
-                        )
-                    new_weights = -self.J0 + self.J2*sharp_cos
-                    new_weight = new_weights[other_idx]
-                    other_idx = self.J_episode_indices[other_idx]
-                    attractor_idx = self.J_episode_indices[attractor_idx]
-                    if other_idx == attractor_idx:
-                        continue
-                    self.J[other_idx, attractor_idx] = new_weight
-        self.episode_attractors = episode_attractors
-
     def _g(self, f_t):
         """
         Rectifies and saturates a given firing rate.
