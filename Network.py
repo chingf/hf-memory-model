@@ -1,6 +1,5 @@
 import numpy as np
 from math import pi
-import matplotlib.pyplot as plt
 
 class OverlapNetwork(object):
     """
@@ -46,11 +45,11 @@ class OverlapNetwork(object):
             between the episode and place network.
     """
 
-    base_J0 = 0.3 
+    base_J0 = 0.3
     base_J2 = 5.
     dt = 0.1
-    kappa = 4
-    vonmises_gain = 3.
+    kappa = 4. 
+    vonmises_gain = 3.2
 
     def __init__(
             self, N, K_inhib, overlap=0, num_interactions=3,
@@ -112,13 +111,16 @@ class OverlapNetwork(object):
             for c in center_units:
                 neighbors = [int(c + i)%self.N for i in np.arange(-2, 3)]
                 episode_units.extend(neighbors)
+            for c in center_units:
+                neighbors = [int(c + i)%self.N for i in np.arange(-2, 3)]
                 place_units.extend(neighbors)
             self.interacting_units = np.array([episode_units, place_units])
+            print(self.interacting_units)
 
     def _init_shared_units(self):
         """ Determines which units are shared between the two networks """
 
-        episode_units = self.interacting_units[0] 
+        episode_units = [] #self.interacting_units[0] 
         num_shared_units = int(self.N*self.overlap)
         shared_episode_units = np.random.choice(
             [i for i in range(self.N) if i not in episode_units],
@@ -129,6 +131,8 @@ class OverlapNetwork(object):
             num_shared_units, replace=False
             )
         shared_unit_map = np.vstack((shared_episode_units, shared_place_units))
+        print()
+        print(shared_unit_map)
         self.shared_unit_map = shared_unit_map
         self.num_shared_units = num_shared_units
         self.num_separate_units = self.N - num_shared_units
@@ -214,12 +218,12 @@ class OverlapNetwork(object):
         episode_units = self.interacting_units[0]
         place_units = self.interacting_units[1]
         interaction_support = np.arange(-self.N//2, self.N//2 + 1)
+        scale = 2
 
         for idx, episode_unit in enumerate(episode_units):
             episode_unit = self.J_episode_indices[episode_unit]
             for i in interaction_support:
                 weight_offset = self._get_weight_value(i, 0)
-                scale = 2
                 weight_offset *= scale
                 place_unit = self.J_place_indices[(place_units[idx]+i)%self.N]
                 self.J[place_unit, episode_unit] = weight_offset
@@ -229,10 +233,10 @@ class OverlapNetwork(object):
                 place_unit = self.J_place_indices[place_unit]
                 for i in interaction_support:
                     weight_offset = self._get_weight_value(i, 0)
-                    scale = 2
                     weight_offset *= scale
                     episode_unit = self.J_episode_indices[(episode_units[idx]+i)%self.N]
                     self.J[episode_unit, place_unit] = weight_offset
+
         for i in range(self.J.shape[0]):
             self.J[i,i] = 0
 

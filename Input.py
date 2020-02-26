@@ -35,7 +35,7 @@ class Input(object):
 class NoisyInput(Input):
     """ Feeds in random noise into the episode network. """
 
-    def __init__(self, T=600, noise_length=300):
+    def __init__(self, T=200, noise_length=100):
         self.T = T
         self.noise_length = noise_length
         self.t = 0
@@ -71,6 +71,8 @@ class BehavioralInput(Input):
         self.t = 0
         self.target_seed = np.nan
         self.event_times = [12, 16, 18, 27]
+        self.event_times = [s + 10 for s in self.event_times]
+        self.T = 400
 
     def set_current_activity(self, f):
         if self.t <= (self.event_times[1]*10) + 1:
