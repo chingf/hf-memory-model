@@ -24,12 +24,12 @@ class Input(object):
         mu = 0
         kappa = self.network.kappa
         vonmises_gain = self.network.vonmises_gain
-        loc_idx = int(loc/(2*pi)*self.network.N)
-        x = np.linspace(-pi, pi, self.network.N, endpoint=False)
+        loc_idx = int(loc/(2*pi)*self.network.N_pl)
+        x = np.linspace(-pi, pi, self.network.N_pl, endpoint=False)
         curve = np.exp(kappa*np.cos(x-mu))/(2*pi*np.i0(kappa))
         curve -= np.max(curve)/2.
         curve *= vonmises_gain
-        curve = np.roll(curve, loc_idx - self.network.N//2)
+        curve = np.roll(curve, loc_idx - self.network.N_pl//2)
         return curve
 
 class NoisyInput(Input):
@@ -44,7 +44,7 @@ class NoisyInput(Input):
         if self.t < self.noise_length:
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_episode_indices] = np.random.normal(
-                0, 1, self.network.N
+                0, 1, self.network.N_ep
                 )
             alpha_t = 0.6
         elif self.t < self.T:
@@ -89,7 +89,7 @@ class BehavioralInput(Input):
         elif self.to_seconds(t) < T3: # Query for seed
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_episode_indices] = np.random.normal(
-                0, 1, self.network.N
+                0, 1, self.network.N_ep
                 )
             alpha_t = 0.6 if t < (T2*10) else 0
         elif self.to_seconds(t) < T4: # Navigation to seed
@@ -117,4 +117,4 @@ class BehavioralInput(Input):
 
     def set_seed(self):
         place_f = self.f[self.network.J_place_indices]
-        self.target_seed = (np.argmax(place_f)/self.network.N)*(2*pi)
+        self.target_seed = (np.argmax(place_f)/self.network.N_pl)*(2*pi)

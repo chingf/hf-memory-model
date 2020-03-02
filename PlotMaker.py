@@ -38,17 +38,19 @@ class PlotMaker(object):
         """
 
         network = sim.network
-        full_J = np.zeros((network.N*2, network.N*2))*np.nan
+        N_ep = network.N_ep
+        N_pl = network.N_pl
+        full_J = np.zeros((N_ep + N_pl, N_ep + N_pl))*np.nan
         for idx_i, i in enumerate(network.J_episode_indices):
             for idx_j, j in enumerate(network.J_episode_indices):
                 full_J[idx_i, idx_j] = network.J[i, j]
             for idx_j, j in enumerate(network.J_place_indices):
-                full_J[idx_i, idx_j + network.N] = network.J[i, j]
+                full_J[idx_i, idx_j + N_ep] = network.J[i, j]
         for idx_i, i in enumerate(network.J_place_indices):
             for idx_j, j in enumerate(network.J_episode_indices):
-                full_J[idx_i + network.N, idx_j] = network.J[i, j]
+                full_J[idx_i + N_ep, idx_j] = network.J[i, j]
             for idx_j, j in enumerate(network.J_place_indices):
-                full_J[idx_i + network.N, idx_j + network.N] = network.J[i, j]
+                full_J[idx_i + N_ep, idx_j + N_ep] = network.J[i, j]
         plt.figure()
         norm = mcolors.DivergingNorm(
             vmin=full_J.min(), vmax = full_J.max(), vcenter=0
@@ -71,7 +73,8 @@ class PlotMaker(object):
         inputs = sim.inputgen.inputs
         alphas = sim.inputgen.alphas
         T = inputs.shape[0]
-        N = network.N
+        N_pl = network.N_pl
+        N_ep = network.N_ep
         gridrows = 9
         gridcols = 12
         rowspan = 3
@@ -95,9 +98,9 @@ class PlotMaker(object):
         plt.imshow(np.flip(inputs.T, axis=0))
         plt.xticks(np.arange(0, T, 100), np.arange(0, T, 100))
         plt.yticks(
-            [0, N//2, 3*N//2, 2*N], ["0", "Pi", "Pi", "2Pi"]
+            [N_pl, N_pl + N_ep//2, N_pl + N_ep], ["0", "Pi", "2Pi"]
             )
-        plt.axhline(N, color='black')
+        plt.axhline(N_pl, color='black')
         plt.ylabel("Input to Unit", fontsize=14)
         plt.title("Activity over Time", fontsize=16)
         plt.gca().set_aspect('auto')
@@ -106,7 +109,7 @@ class PlotMaker(object):
         plt.subplot2grid(
             (gridrows,gridcols), (rowspan,colspan), rowspan=rowspan, colspan=2
             )
-        plt.plot(f_ep[:,-1], np.arange(N))
+        plt.plot(f_ep[:,-1], np.arange(N_ep))
         for internetwork_unit in network.internetwork_units[0]:
             plt.axhline(internetwork_unit, color="red", linewidth=0.5)
         plt.axvline(0, color="gray")
@@ -119,16 +122,14 @@ class PlotMaker(object):
             np.flip(f_ep, axis=0), cmap=plt.cm.coolwarm, norm=norm, aspect='auto'
             )
         plt.xticks(np.arange(0, T, 100), np.arange(0, T//10, 10))
-        plt.yticks(
-            [0, f_ep.shape[0]//2, f_ep.shape[0] - 1], ["2Pi", "Pi", "0"]
-            )
+        plt.yticks([0, N_ep//2, N_ep - 1], ["2Pi", "Pi", "0"])
         plt.ylabel("Episode Network", fontsize=14)
 
         # Plot residuals and place network activity
         plt.subplot2grid(
             (gridrows,gridcols), (rowspan*2,colspan), rowspan=rowspan, colspan=2
             )
-        plt.plot(f_pl[:,-1], np.arange(N))
+        plt.plot(f_pl[:,-1], np.arange(N_pl))
         for internetwork_unit in network.internetwork_units[1]:
             plt.axhline(internetwork_unit, color="red", linewidth=0.5)
         plt.axvline(0, color="gray")
@@ -140,9 +141,7 @@ class PlotMaker(object):
         aximg_pl = plt.imshow(
             np.flip(f_pl, axis=0), cmap=plt.cm.coolwarm, norm=norm, aspect='auto'
             )
-        plt.yticks(
-            [0, f_ep.shape[0]//2, f_ep.shape[0] - 1], ["2Pi", "Pi", "0"]
-            )
+        plt.yticks([0, N_pl//2, N_pl - 1], ["2Pi", "Pi", "0"])
         plt.ylabel("Place Network", fontsize=14)
 
         # Plots the seconds on the x axis of the last subplot
