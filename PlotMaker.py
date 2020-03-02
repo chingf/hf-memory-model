@@ -50,7 +50,10 @@ class PlotMaker(object):
             for idx_j, j in enumerate(network.J_place_indices):
                 full_J[idx_i + network.N, idx_j + network.N] = network.J[i, j]
         plt.figure()
-        plt.imshow(full_J)
+        norm = mcolors.DivergingNorm(
+            vmin=full_J.min(), vmax = full_J.max(), vcenter=0
+            )
+        plt.imshow(full_J, cmap=plt.cm.coolwarm, norm=norm)
         plt.show()
 
     def _make_main_grid(self, sim, f):
