@@ -33,6 +33,7 @@ class Simulator(object):
         m = np.zeros((self.network.num_units, self.inputgen.T)) # Current
         f = np.zeros((self.network.num_units, self.inputgen.T)) # Firing rate
         m0 = 0.1*np.random.normal(0, 1, self.network.num_units)
+        f0 = self.network.J @ np.clip(m0, 0, 1)
         t = 0
         while True:
             try:
@@ -40,9 +41,9 @@ class Simulator(object):
             except StopIteration:
                 break
             if t == 0:
-                m_t, f_t = self.network.step(m0, input_t, alpha_t)
+                m_t, f_t = self.network.step(m0, f0, input_t, alpha_t)
             else:
-                m_t, f_t = self.network.step(m[:, t-1], input_t, alpha_t)
+                m_t, f_t = self.network.step(m[:, t-1], f[:, t-1], input_t, alpha_t)
             m[:,t] = m_t
             f[:,t] = f_t
             self.inputgen.set_current_activity(f_t)

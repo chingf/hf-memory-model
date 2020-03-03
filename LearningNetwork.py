@@ -1,7 +1,12 @@
 import numpy as np
 from math import pi
+from sklearn.preprocessing import normalize
 
-class OverlapNetwork(object):
+import warnings
+import traceback
+warnings.filterwarnings("error")
+
+class LearningNetwork(object):
     """
     An attractor network made of two separate ring attractors: a place network
     and an episode network. The two networks may overlap to a user-specified
@@ -56,23 +61,22 @@ class OverlapNetwork(object):
 
     def __init__(
             self, N_pl, N_ep, K_inhib,
-            overlap=0, num_internetwork_connections=3, num_ep_modules=3,
+            overlap=0, num_ep_modules=3, start_random=False,
             add_feedback=False
             ):
         self.N_pl = N_pl
         self.N_ep = N_ep
         self.K_inhib = K_inhib
         self.overlap = overlap
-        self.num_internetwork_connections = num_internetwork_connections
         self.num_ep_modules = num_ep_modules
+        self.start_random = start_random
         self.add_feedback = add_feedback
         self.J0 = self.base_J0/N_pl
         self.J2 = self.base_J2/N_pl
+        self.internetwork_units = np.array([[], []])
         self._init_episode_modules()
-        self._init_internetwork_units()
         self._init_shared_units()
         self._init_J()
-        self._init_J_interactions()
 
     def step(self, prev_m, prev_f, input_t, alpha_t):
         """
@@ -89,39 +93,41 @@ class OverlapNetwork(object):
                 firing rates, respectively, of each unit in the next time step.
         """
 
-        h_ext = alpha_t*input_t
-        f_t = self.J @ self._g(prev_m) + self._g(h_ext)
-        dmdt = -prev_m + f_t - self.K_inhib
-        m_t = prev_m + self.dt*dmdt 
+        try: #TODO: figure out what combination of curr/prev f/m you want to use
+            h_ext = alpha_t*input_t
+            f_t = self.J @ self._g(prev_m) + self._g(h_ext)
+            dmdt = -prev_m + f_t - self.K_inhib
+            m_t = prev_m + self.dt*dmdt
+            self._update_synapses(prev_f, f_t)
+        except:
+            traceback.print_exc()
+            import pdb; pdb.set_trace()
         return m_t, f_t
+
+    def _update_synapses(self, prev_f, curr_m):
+        try:
+            alpha = 1e-4
+            for i in range(self.num_units):
+                for j in range(self.num_units):
+                    if i == j: continue
+                    both_ep = i in self.J_episode_indices and j in self.J_episode_indices
+                    both_pl = i in self.J_place_indices and j in self.J_place_indices
+                    if not (both_pl): continue
+                    w = self.J[i, j]
+                    input_j = prev_f[j]
+                    response_i = curr_m[i]
+                    input_j = 0 if np.abs(input_j) < 1e-10 else input_j
+                    response_i = 0 if np.abs(response_i) < 1e-10 else response_i
+                    delta_w = alpha * response_i * (input_j - response_i * w)
+                    self.J[i,j] += delta_w
+        except:
+            traceback.print_exc()
+            import pdb; pdb.set_trace()
 
     def _init_episode_modules(self):
         self.ep_modules = np.array_split(
             np.arange(self.N_ep).astype(int), self.num_ep_modules
             )
-
-    def _init_internetwork_units(self):
-        """ Determines which units connect between the two networks """
-
-        if self.num_internetwork_connections == 0:
-            self.internetwork_units = np.array([[], []])
-        else:
-            center_ep_units = np.linspace(
-                0, self.N_ep, self.num_internetwork_connections, endpoint=False
-                )
-            center_pl_units = np.linspace(
-                0, self.N_pl, self.num_internetwork_connections, endpoint=False
-                )
-            episode_units = []
-            place_units = []
-            for c in center_ep_units:
-                neighbors = [int(c + i)%self.N_ep for i in np.arange(-2, 3)]
-                episode_units.extend(neighbors)
-            for c in center_pl_units:
-                neighbors = [int(c + i)%self.N_pl for i in np.arange(-2, 3)]
-                place_units.extend(neighbors)
-            self.internetwork_units = np.array([episode_units, place_units])
-            print(self.internetwork_units)
 
     def _init_shared_units(self):
         """ Determines which units are shared between the two networks """
@@ -137,10 +143,33 @@ class OverlapNetwork(object):
         self.shared_unit_map = shared_unit_map
         self.num_shared_units = num_shared_units
         self.num_units = self.N_ep + self.N_pl - num_shared_units
-        np.random.seed()
 
     def _init_J(self):
         """ Initializes the connectivity matrix J """
+
+        if self.start_random:
+            J_episode_indices = np.zeros(self.N_ep).astype(int)
+            J_place_indices = np.zeros(self.N_pl).astype(int)
+            self.J = np.random.normal(0, 1, (self.num_units, self.num_units))
+            J_idx = 0
+            for i in range(self.N_ep):
+                if i in self.shared_unit_map[0]:continue
+                J_episode_indices[i] = J_idx
+                J_idx += 1
+            for i in range(self.N_pl):
+                if i in self.shared_unit_map[1]: continue
+                J_place_indices[i] = J_idx
+                J_idx += 1
+            for i in range(self.num_shared_units):
+                ep = self.shared_unit_map[0, i]
+                pl = self.shared_unit_map[1, i]
+                J_episode_indices[ep] = J_idx
+                J_place_indices[pl] = J_idx
+                J_idx += 1
+            self.J = normalize(self.J, axis=1)
+            self.J_episode_indices = J_episode_indices
+            self.J_place_indices = J_place_indices
+            return
 
         num_unshared_ep = self.N_ep - self.num_shared_units
         num_unshared_pl = self.N_pl - self.num_shared_units
@@ -210,43 +239,19 @@ class OverlapNetwork(object):
             J_place_indices[pl_unit] = int(J_idx)
             J_idx += 1
 
+        # Remove any self-excitation
+        for i in range(self.num_units):
+            J[i,i] = 0
         self.J_episode_indices = J_episode_indices
         self.J_place_indices = J_place_indices
         self.J = J
 
-    def _init_J_interactions(self):
-        """ Adds the interactions between networks to J matrix """
-
-        episode_units = self.internetwork_units[0]
-        place_units = self.internetwork_units[1]
-        interaction_support = np.arange(-self.N_pl//2, self.N_pl//2 + 1)
-        scale = 2
-        for idx, episode_unit in enumerate(episode_units):
-            episode_unit = self.J_episode_indices[episode_unit]
-            for i in interaction_support:
-                weight_offset = self._get_vonmises_weight(i, 0)
-                weight_offset *= scale
-                place_unit = self.J_place_indices[(place_units[idx]+i)%self.N_pl]
-                self.J[place_unit, episode_unit] = weight_offset
-        if self.add_feedback:
-            for idx, place_unit in enumerate(place_units):
-                place_unit = self.J_place_indices[place_unit]
-                for i in interaction_support:
-                    weight_offset = self._get_vonmises_weight(i, 0)
-                    weight_offset *= scale
-                    episode_unit = self.J_episode_indices[
-                        (episode_units[idx]+i)%self.N_ep
-                        ]
-                    self.J[episode_unit, place_unit] = weight_offset
-        for i in range(self.J.shape[0]):
-            self.J[i,i] = 0
-
-    def _g(self, f_t):
+    def _g(self, x):
         """
-        Rectifies and saturates a given firing rate.
+        Rectifies and saturates a given vector.
         """
 
-        return np.clip(f_t, 0, 1)
+        return np.clip(x, 0, 1)
 
     def _get_vonmises_weight(self, i ,center):
         curve = self._get_vonmises(center=center)

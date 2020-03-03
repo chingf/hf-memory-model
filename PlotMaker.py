@@ -28,7 +28,6 @@ class PlotMaker(object):
         height = 7
         fig = plt.figure(1)
         self._make_main_grid(sim, f)
-        fig.tight_layout()
         fig.set_size_inches(w=width, h=height)
         plt.show()
 

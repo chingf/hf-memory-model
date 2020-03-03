@@ -57,6 +57,55 @@ class NoisyInput(Input):
         self.t += 1
         return input_t, alpha_t
 
+class NavigationInput(Input):
+    """ Feeds in navigation input to the place network. """
+
+    def __init__(self, input_order=0, T=800):
+        self.T = T
+        self.input_order = input_order
+        self.t = 0
+
+    def get_inputs(self):
+        if self.t < self.T:
+            period = 800
+            loc_t = ((self.t % period)/period)*(2*pi)
+            input_t = np.zeros(self.network.num_units)
+            input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
+            alpha_t = 0.6
+        else:
+            raise StopIteration
+        self.inputs[self.t,:] = input_t
+        self.alphas[self.t] = alpha_t
+        self.t += 1
+        return input_t, alpha_t
+
+class IndependentInput(Input):
+    """ Feeds in random noise into episode network, then navigation input. """
+
+    def __init__(self, input_order=0, T=300):
+        self.T = T
+        self.input_order = input_order
+        self.t = 0
+
+    def get_inputs(self):
+        if self.t < self.T//2:
+            loc_t = (self.t % 100)/(2*pi)
+            input_t = np.zeros(self.network.num_units)
+            input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
+            alpha_t = 0.6
+        elif self.t < self.T:
+            input_t = np.zeros(self.network.num_units)
+            input_t[self.network.J_episode_indices] = np.random.normal(
+                0, 1, self.network.N_ep
+                )
+            alpha_t = 0.6
+        else:
+            raise StopIteration
+        self.inputs[self.t,:] = input_t
+        self.alphas[self.t] = alpha_t
+        self.t += 1
+        return input_t, alpha_t
+
 class BehavioralInput(Input):
     """
     Creates input that is chickadee-like. Specifically:
