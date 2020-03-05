@@ -74,7 +74,7 @@ class OverlapNetwork(object):
         self._init_J()
         self._init_J_interactions()
 
-    def step(self, prev_m, prev_f, input_t, alpha_t):
+    def step(self, prev_m, prev_f, input_t, alpha_t, fastlearn):
         """
         Steps the network forward one time step. Evolves the current network
         activity according to the defined first-order dynamics.

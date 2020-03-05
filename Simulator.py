@@ -37,13 +37,15 @@ class Simulator(object):
         t = 0
         while True:
             try:
-                input_t, alpha_t = self.inputgen.get_inputs()
+                input_t, alpha_t, fastlearn = self.inputgen.get_inputs()
             except StopIteration:
                 break
             if t == 0:
-                m_t, f_t = self.network.step(m0, f0, input_t, alpha_t)
+                m_t, f_t = self.network.step(m0, f0, input_t, alpha_t, fastlearn)
             else:
-                m_t, f_t = self.network.step(m[:, t-1], f[:, t-1], input_t, alpha_t)
+                m_t, f_t = self.network.step(
+                    m[:, t-1], f[:, t-1], input_t, alpha_t, fastlearn
+                    )
             m[:,t] = m_t
             f[:,t] = f_t
             self.inputgen.set_current_activity(f_t)

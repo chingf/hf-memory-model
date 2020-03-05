@@ -9,9 +9,10 @@ from math import sin
 from math import cos
 from PlotMaker import PlotMaker
 from Network import OverlapNetwork
-from LearningNetwork import LearningNetwork
+from LearningNetwork import LearningNetwork, HalfLearningNetwork
 from Simulator import Simulator
-from Input import NoisyInput, IndependentInput, BehavioralInput, NavigationInput
+from Input import NoisyInput, BehavioralInput, NavigationInput
+from Input import SimultaneousInput, MovingSimultaneousInput
 
 pm = PlotMaker()
 
@@ -44,6 +45,20 @@ def run_and_plot_learningnet(overlap=0.):
     pm.plot_main(sim, f)
     pm.plot_J(sim)
 
-for o in [0.]:
+def run_and_plot_halfnet(overlap=0.):
+    N_pl = 100
+    N_ep = 100
+    K_inhib = 0.
+    network = HalfLearningNetwork(
+        N_pl=N_pl, N_ep=N_ep, K_inhib=K_inhib, overlap=overlap,
+        num_ep_modules=6, add_feedback=True
+        )
+    inputgen = SimultaneousInput()
+    sim = Simulator(network, inputgen)
+    m, f = sim.simulate()
+    pm.plot_main(sim, f)
+    pm.plot_J(sim)
+
+for o in [0.2]:
     print("Overlap: %1.2f"%o)
-    run_and_plot_learningnet(o)
+    run_and_plot_halfnet(o)

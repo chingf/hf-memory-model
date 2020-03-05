@@ -55,56 +55,85 @@ class NoisyInput(Input):
         self.inputs[self.t,:] = input_t
         self.alphas[self.t] = alpha_t
         self.t += 1
-        return input_t, alpha_t
+        return input_t, alpha_t, False
 
 class NavigationInput(Input):
     """ Feeds in navigation input to the place network. """
 
-    def __init__(self, input_order=0, T=800):
+    def __init__(self, input_order=0, T=2400):
         self.T = T
         self.input_order = input_order
         self.t = 0
 
     def get_inputs(self):
         if self.t < self.T:
-            period = 800
+            period = 50
             loc_t = ((self.t % period)/period)*(2*pi)
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
-            alpha_t = 0.6
+            alpha_t = 1. 
         else:
             raise StopIteration
         self.inputs[self.t,:] = input_t
         self.alphas[self.t] = alpha_t
         self.t += 1
-        return input_t, alpha_t
+        return input_t, alpha_t, False
 
-class IndependentInput(Input):
-    """ Feeds in random noise into episode network, then navigation input. """
+class SimultaneousInput(Input):
+    """ Feeds in random noise into episode network with navigation input. """
 
-    def __init__(self, input_order=0, T=300):
+    def __init__(self, input_order=0, T=45):
+        self.T = T
+        self.input_order = input_order
+        self.t = 0
+        self.noise_end = 10 
+
+    def get_inputs(self):
+        fastlearn = False
+        if self.t < self.T:
+            period = 50
+            input_t = np.zeros(self.network.num_units)
+            if self.t < self.noise_end:
+                loc_t = pi
+                if self.t < 3:
+                    input_t[self.network.J_episode_indices] = np.random.normal(
+                        0, 1, self.network.N_ep
+                        )
+                input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
+            elif self.noise_end <= self.t < self.noise_end + 2:
+                fastlearn = True
+            else:
+                loc_t = ((self.t % period)/period)*(2*pi)
+                input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
+            alpha_t = 1. 
+        else:
+            raise StopIteration
+        self.inputs[self.t,:] = input_t
+        self.alphas[self.t] = alpha_t
+        self.t += 1
+        return input_t, alpha_t, fastlearn
+
+class MovingSimultaneousInput(Input):
+    """ Feeds in random noise into episode network and navigation input. """
+
+    def __init__(self, input_order=0, T=2400):
         self.T = T
         self.input_order = input_order
         self.t = 0
 
     def get_inputs(self):
-        if self.t < self.T//2:
-            loc_t = (self.t % 100)/(2*pi)
+        if self.t < self.T:
+            period = 50
+            loc_t = ((self.t % period)/period)*(2*pi)
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
-            alpha_t = 0.6
-        elif self.t < self.T:
-            input_t = np.zeros(self.network.num_units)
-            input_t[self.network.J_episode_indices] = np.random.normal(
-                0, 1, self.network.N_ep
-                )
-            alpha_t = 0.6
+            alpha_t = 0.6 
         else:
             raise StopIteration
         self.inputs[self.t,:] = input_t
         self.alphas[self.t] = alpha_t
         self.t += 1
-        return input_t, alpha_t
+        return input_t, alpha_t, False
 
 class BehavioralInput(Input):
     """
@@ -132,6 +161,7 @@ class BehavioralInput(Input):
         t = self.t
         if self.to_seconds(t) < T1: # Free navigation to loc
             loc_t = ((t/(T1*10)) * (2*pi + self.pre_seed_loc)) % (2*pi)
+            loc_t = loc_t//(2*pi/16) * (2*pi/16)
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
             alpha_t = 0.6
@@ -159,7 +189,7 @@ class BehavioralInput(Input):
         self.inputs[self.t,:] = input_t
         self.alphas[self.t] = alpha_t
         self.t += 1
-        return input_t, alpha_t
+        return input_t, alpha_t, False
 
     def to_seconds(self, t):
         return t/10.
