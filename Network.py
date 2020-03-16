@@ -1,4 +1,5 @@
 import numpy as np
+from sklearn.preprocessing import normalize
 from math import pi
 
 class OverlapNetwork(object):
@@ -73,6 +74,7 @@ class OverlapNetwork(object):
         self._init_shared_units()
         self._init_J()
         self._init_J_interactions()
+        self.J = normalize(self.J, axis=1)
 
     def step(self, prev_m, prev_f, input_t, alpha_t, fastlearn):
         """
@@ -150,7 +152,7 @@ class OverlapNetwork(object):
         J_idx = 0
 
         # Fill in unshared episode network connectivity matrix
-        ep_weight = 1.
+        ep_weight = 1. 
         ep_excit = ep_weight/(self.N_ep//self.num_ep_modules)
         ep_inhib = -ep_weight/(self.N_ep - self.N_ep//self.num_ep_modules)
         for m_i in range(self.num_ep_modules):

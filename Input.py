@@ -57,12 +57,58 @@ class NoisyInput(Input):
         self.t += 1
         return input_t, alpha_t, False
 
+class EpisodeDriveInput(Input):
+    """ Drives episode network with global excitation """
+
+    def __init__(self, T=100):
+        self.T = T
+        self.T_excit = 20
+        self.t = 0
+        self.excit = 0.3
+
+    def get_inputs(self):
+        if self.t < self.T:
+            input_t = np.zeros(self.network.num_units)
+            input_t[self.network.J_episode_indices] =self.excit #np.random.normal(
+               # 0, 0.2, self.network.N_ep
+               # ) + self.excit
+            alpha_t = 1. if self.t < self.T_excit else 0.
+            if self.T_excit + 20 < self.t < self.T_excit + 40:
+                alpha_t = -2.
+        else:
+            raise StopIteration
+        self.inputs[self.t,:] = input_t
+        self.alphas[self.t] = alpha_t
+        self.t += 1
+        return input_t, alpha_t, False
+
+class WTANavigationInput(Input):
+    """ Navigation input into WTA network """
+
+    def __init__(self, T=1300):
+        self.T = T
+        self.t = 0
+
+    def get_inputs(self):
+        if self.t < self.T:
+            period = 50
+            loc_t = ((self.t % period)/period)*(2*pi)
+            input_t = np.zeros(self.network.num_units)
+            input_t[self.network.J_episode_indices] = self._get_sharp_cos(loc_t)
+            alpha_t = 1.
+            input_t[input_t < 0] = 0
+            self.inputs[self.t,:] = input_t
+            self.alphas[self.t] = alpha_t
+            self.t += 1
+            return input_t, alpha_t, False
+        else:
+            raise StopIteration
+
 class NavigationInput(Input):
     """ Feeds in navigation input to the place network. """
 
-    def __init__(self, input_order=0, T=2400):
+    def __init__(self, T=1300):
         self.T = T
-        self.input_order = input_order
         self.t = 0
 
     def get_inputs(self):
@@ -71,22 +117,22 @@ class NavigationInput(Input):
             loc_t = ((self.t % period)/period)*(2*pi)
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
-            alpha_t = 1. 
+            alpha_t = 1.
+            input_t[input_t < 0] = 0
+            self.inputs[self.t,:] = input_t
+            self.alphas[self.t] = alpha_t
+            self.t += 1
+            return input_t, alpha_t, False
         else:
             raise StopIteration
-        self.inputs[self.t,:] = input_t
-        self.alphas[self.t] = alpha_t
-        self.t += 1
-        return input_t, alpha_t, False
 
 class SimultaneousInput(Input):
-    """ Feeds in random noise into episode network with navigation input. """
+    """ Feeds in random noise into episode network and navigation input. """
 
-    def __init__(self, input_order=0, T=45):
+    def __init__(self, T=45):
         self.T = T
-        self.input_order = input_order
         self.t = 0
-        self.noise_end = 10 
+        self.noise_end = 10
 
     def get_inputs(self):
         fastlearn = False
@@ -95,10 +141,10 @@ class SimultaneousInput(Input):
             input_t = np.zeros(self.network.num_units)
             if self.t < self.noise_end:
                 loc_t = pi
-                if self.t < 3:
+                if self.t < 7:
                     input_t[self.network.J_episode_indices] = np.random.normal(
                         0, 1, self.network.N_ep
-                        )
+                        ) + 0.8
                 input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
             elif self.noise_end <= self.t < self.noise_end + 2:
                 fastlearn = True
@@ -112,28 +158,6 @@ class SimultaneousInput(Input):
         self.alphas[self.t] = alpha_t
         self.t += 1
         return input_t, alpha_t, fastlearn
-
-class MovingSimultaneousInput(Input):
-    """ Feeds in random noise into episode network and navigation input. """
-
-    def __init__(self, input_order=0, T=2400):
-        self.T = T
-        self.input_order = input_order
-        self.t = 0
-
-    def get_inputs(self):
-        if self.t < self.T:
-            period = 50
-            loc_t = ((self.t % period)/period)*(2*pi)
-            input_t = np.zeros(self.network.num_units)
-            input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
-            alpha_t = 0.6 
-        else:
-            raise StopIteration
-        self.inputs[self.t,:] = input_t
-        self.alphas[self.t] = alpha_t
-        self.t += 1
-        return input_t, alpha_t, False
 
 class BehavioralInput(Input):
     """
@@ -164,12 +188,13 @@ class BehavioralInput(Input):
             loc_t = loc_t//(2*pi/16) * (2*pi/16)
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
+            input_t[input_t < 0] = 0
             alpha_t = 0.6
         elif self.to_seconds(t) < T3: # Query for seed
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_episode_indices] = np.random.normal(
                 0, 1, self.network.N_ep
-                )
+                ) + 0.6
             alpha_t = 0.6 if t < (T2*10) else 0
         elif self.to_seconds(t) < T4: # Navigation to seed
             if np.isnan(self.target_seed):
@@ -180,6 +205,7 @@ class BehavioralInput(Input):
             loc_t = ((t - nav_start)/nav_time)*nav_distance + self.pre_seed_loc
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
+            input_t[input_t < 0] = 0
             alpha_t = 0.6
         elif t < self.T: # End input, but let network evolve for some time
             input_t = np.zeros(self.network.num_units)

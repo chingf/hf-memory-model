@@ -1,6 +1,7 @@
 import numpy as np
 from math import pi
-from Network import OverlapNetwork 
+from Network import OverlapNetwork
+from PlotMaker import PlotMaker
 from Input import *
 
 class Simulator(object):
@@ -40,6 +41,7 @@ class Simulator(object):
                 input_t, alpha_t, fastlearn = self.inputgen.get_inputs()
             except StopIteration:
                 break
+
             if t == 0:
                 m_t, f_t = self.network.step(m0, f0, input_t, alpha_t, fastlearn)
             else:

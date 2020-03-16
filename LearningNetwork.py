@@ -61,8 +61,7 @@ class LearningNetwork(object):
 
     def __init__(
             self, N_pl, N_ep, K_inhib,
-            overlap=0, num_ep_modules=3, start_random=False,
-            add_feedback=False
+            overlap=0, num_ep_modules=3, start_random=False
             ):
         self.N_pl = N_pl
         self.N_ep = N_ep
@@ -70,7 +69,6 @@ class LearningNetwork(object):
         self.overlap = overlap
         self.num_ep_modules = num_ep_modules
         self.start_random = start_random
-        self.add_feedback = add_feedback
         self.J0 = self.base_J0/N_pl
         self.J2 = self.base_J2/N_pl
         self.internetwork_units = np.array([[], []])
@@ -93,37 +91,29 @@ class LearningNetwork(object):
                 firing rates, respectively, of each unit in the next time step.
         """
 
-        try:
-            h_ext = alpha_t*input_t
-            f_t = self.J @ self._g(prev_m) + h_ext
-            dmdt = -prev_m + f_t - self.K_inhib
-            m_t = prev_m + self.dt*dmdt
-            self._update_synapses(prev_f, f_t, fastlearn)
-        except:
-            traceback.print_exc()
-            import pdb; pdb.set_trace()
+        h_ext = alpha_t*input_t
+        f_t = self.J @ self._g(prev_m) + h_ext - self.K_inhib
+        dmdt = -prev_m + f_t
+        m_t = prev_m + self.dt*dmdt
+        self._update_synapses(prev_f, f_t, fastlearn)
         return m_t, f_t
 
-    def _update_synapses(self, prev_f, curr_m, fastlearn):
-        try:
-            alpha = 1e-4
-            for i in range(self.num_units):
-                for j in range(self.num_units):
-                    if i == j: continue
-                    both_ep = i in self.J_episode_indices and j in self.J_episode_indices
-                    both_pl = i in self.J_place_indices and j in self.J_place_indices
-                    if not (both_pl): continue
-                    w = self.J[i, j]
-                    input_j = prev_f[j]
-                    response_i = curr_m[i]
-                    if input_j < 0 and response_i < 0: continue
-                    input_j = 0 if np.abs(input_j) < 1e-10 else input_j
-                    response_i = 0 if np.abs(response_i) < 1e-10 else response_i
-                    delta_w = alpha * response_i * (input_j - response_i * w)
-                    self.J[i,j] += delta_w
-        except:
-            traceback.print_exc()
-            import pdb; pdb.set_trace()
+    def _update_synapses(self, pre, post, fastlearn):
+        alpha = 1e-3
+        for i in range(self.num_units):
+            for j in range(self.num_units):
+                if i == j: continue
+                both_ep = i in self.J_episode_indices and j in self.J_episode_indices
+                both_pl = i in self.J_place_indices and j in self.J_place_indices
+                if not (both_pl): continue
+                w = self.J[i, j]
+                input_j = pre[j]
+                response_i = post[i]
+                if input_j < 0 and response_i < 0: continue
+                input_j = 0 if np.abs(input_j) < 1e-10 else input_j
+                response_i = 0 if np.abs(response_i) < 1e-10 else response_i
+                delta_w = alpha * response_i * (input_j - response_i * w)
+                self.J[i,j] += delta_w
 
     def _init_episode_modules(self):
         self.ep_modules = np.array_split(
@@ -180,7 +170,7 @@ class LearningNetwork(object):
         J_idx = 0
 
         # Fill in unshared episode network connectivity matrix
-        ep_weight = 1.5
+        ep_weight = 1.25
         ep_excit = ep_weight/(self.N_ep//self.num_ep_modules)
         ep_inhib = -ep_weight/(self.N_ep - self.N_ep//self.num_ep_modules)
         for m_i in range(self.num_ep_modules):
@@ -230,7 +220,7 @@ class LearningNetwork(object):
             for j in np.arange(1, self.num_shared_units - i):
                 j_ep_unit = self.shared_unit_map[0, j]
                 j_pl_unit = self.shared_unit_map[1, j]
-                total_weight = 0.5*(
+                total_weight = (
                     ep_weights[j_ep_unit] + place_weights[j_pl_unit]
                     )
                 J[J_idx, J_idx + j] = total_weight
@@ -271,15 +261,11 @@ class LearningNetwork(object):
         return -self.J0 + self.J2*curve
 
 class HalfLearningNetwork(LearningNetwork):
-    def __init__(
-            self, N_pl, N_ep, K_inhib,
-            overlap=0, num_ep_modules=3, add_feedback=False
-            ):
+    def __init__(self, N_pl, N_ep, K_inhib, overlap=0, num_ep_modules=3):
 
         super().__init__(
             N_pl, N_ep, K_inhib,
-            overlap=overlap, num_ep_modules=num_ep_modules,
-            start_random=False, add_feedback=add_feedback
+            overlap=overlap, num_ep_modules=num_ep_modules, start_random=False
             )
 
     def _update_synapses(self, prev_f, curr_m, fastlearn):

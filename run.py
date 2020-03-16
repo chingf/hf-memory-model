@@ -12,46 +12,75 @@ from Network import OverlapNetwork
 from LearningNetwork import LearningNetwork, HalfLearningNetwork
 from Simulator import Simulator
 from Input import NoisyInput, BehavioralInput, NavigationInput
-from Input import SimultaneousInput, MovingSimultaneousInput
+from Input import SimultaneousInput, EpisodeDriveInput, WTANavigationInput
 
 pm = PlotMaker()
 
 def run_and_plot_overlapnet(overlap=0.):
+    """ Runs and plots the hand-tuned network. """
+
     N_pl = 100
-    N_ep = 200
-    K_inhib = 0.
+    N_ep = 100 
+    K_inhib = 0.18
     network = OverlapNetwork(
         N_pl=N_pl, N_ep=N_ep, K_inhib=K_inhib, overlap=overlap, add_feedback=True,
-        num_internetwork_connections=3, num_ep_modules=12
+        num_internetwork_connections=3, num_ep_modules=6
         )
     inputgen = BehavioralInput(pre_seed_loc=pi)
     sim = Simulator(network, inputgen)
     m, f = sim.simulate()
     pm.plot_main(sim, f)
     pm.plot_J(sim)
-    import pdb; pdb.set_trace()
 
 def run_and_plot_learningnet(overlap=0.):
+    """ Runs and plots a random network learning the ring structure. """
+
     N_pl = 100
     N_ep = 100
-    K_inhib = 0.
+    K_inhib = 0.18
+    np.random.seed(1)
     network = LearningNetwork(
         N_pl=N_pl, N_ep=N_ep, K_inhib=K_inhib, overlap=overlap,
-        num_ep_modules=12, start_random=True, add_feedback=True
+        num_ep_modules=12, start_random=True
         )
-    inputgen = NavigationInput()
+    inputgen = NavigationInput(T=2200)
     sim = Simulator(network, inputgen)
     m, f = sim.simulate()
     pm.plot_main(sim, f)
     pm.plot_J(sim)
+    import pdb; pdb.set_trace()
 
-def run_and_plot_halfnet(overlap=0.):
+def run_and_plot_learningwtanet(overlap=0.):
+    """ Runs and plots a WTA network learning the ring structure. """
+
     N_pl = 100
     N_ep = 100
-    K_inhib = 0.
+    K_inhib = 0.18
+    np.random.seed(3)
+    network = LearningNetwork(
+        N_pl=N_pl, N_ep=N_ep, K_inhib=K_inhib, overlap=overlap,
+        num_ep_modules=20, start_random=False
+        )
+    inputgen = WTANavigationInput(T=3000)
+    sim = Simulator(network, inputgen)
+    pm.plot_J(sim)
+    m, f = sim.simulate()
+    pm.plot_main(sim, f)
+    pm.plot_J(sim)
+    import pdb; pdb.set_trace()
+
+def run_and_plot_halfnet(overlap=0.):
+    """
+    Runs and plots a place and episode network learning inter-network
+    connections.
+    """
+
+    N_pl = 100
+    N_ep = 100
+    K_inhib = 0.18
     network = HalfLearningNetwork(
         N_pl=N_pl, N_ep=N_ep, K_inhib=K_inhib, overlap=overlap,
-        num_ep_modules=6, add_feedback=True
+        num_ep_modules=5
         )
     inputgen = SimultaneousInput()
     sim = Simulator(network, inputgen)
@@ -59,6 +88,20 @@ def run_and_plot_halfnet(overlap=0.):
     pm.plot_main(sim, f)
     pm.plot_J(sim)
 
-for o in [0.2]:
+def run_and_plot_wtanet(overlap=0.):
+    N_pl = 100
+    N_ep = 200
+    K_inhib = 0.
+    network = OverlapNetwork(
+        N_pl=N_pl, N_ep=N_ep, K_inhib=K_inhib, overlap=overlap, add_feedback=False,
+        num_internetwork_connections=3, num_ep_modules=3
+        )
+    inputgen = EpisodeDriveInput()
+    sim = Simulator(network, inputgen)
+    m, f = sim.simulate()
+    pm.plot_main(sim, f)
+    pm.plot_J(sim)
+
+for o in [0.]:
     print("Overlap: %1.2f"%o)
-    run_and_plot_halfnet(o)
+    run_and_plot_learningnet(o)
