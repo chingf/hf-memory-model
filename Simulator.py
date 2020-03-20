@@ -52,4 +52,5 @@ class Simulator(object):
             f[:,t] = f_t
             self.inputgen.set_current_activity(f_t)
             t += 1
+            self.network.t += 1
         return m, f

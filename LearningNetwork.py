@@ -1,6 +1,8 @@
 import numpy as np
 from math import pi
 from sklearn.preprocessing import normalize
+import matplotlib.pyplot as plt
+from PlotMaker import PlotMaker
 
 import warnings
 import traceback
@@ -75,6 +77,8 @@ class LearningNetwork(object):
         self._init_episode_modules()
         self._init_shared_units()
         self._init_J()
+        self.t = 0
+        self.printed = False
 
     def step(self, prev_m, prev_f, input_t, alpha_t, fastlearn):
         """
@@ -99,21 +103,33 @@ class LearningNetwork(object):
         return m_t, f_t
 
     def _update_synapses(self, pre, post, fastlearn):
-        alpha = 1e-3
+        alpha = 1e-3 # Learning rate
+        w_max = 5 # Heterosynaptic competition threshold
+        hc_scaling = 1e-4 # Scaling term for heterosynaptic competition
+        new_J = self.J.copy()
         for i in range(self.num_units):
             for j in range(self.num_units):
-                if i == j: continue
                 both_ep = i in self.J_episode_indices and j in self.J_episode_indices
                 both_pl = i in self.J_place_indices and j in self.J_place_indices
-                if not (both_pl): continue
                 w = self.J[i, j]
-                input_j = pre[j]
-                response_i = post[i]
-                if input_j < 0 and response_i < 0: continue
-                input_j = 0 if np.abs(input_j) < 1e-10 else input_j
-                response_i = 0 if np.abs(response_i) < 1e-10 else response_i
+                input_j = pre[j] if abs(pre[j]) > 1e-10 else 0
+                response_i = post[i] if abs(post[i]) > 1e-10 else 0
+                if (i == j) or (not both_ep) or (input_j < 0 and response_i < 0):
+                    continue
+                in_sum = np.sum(np.abs(self.J[i, self.J_place_indices]))
+                out_sum = np.sum(np.abs(self.J[self.J_place_indices, j]))
+                in_diff = max(0, abs(in_sum) - w_max) * np.sign(w)
+                out_diff = max(0, abs(out_sum) - w_max) * np.sign(w)
                 delta_w = alpha * response_i * (input_j - response_i * w)
-                self.J[i,j] += delta_w
+                delta_w = alpha * response_i * input_j # TODO
+#                delta_w -= hc_scaling*in_diff
+#                delta_w -= hc_scaling*out_diff
+                new_J[i,j] += delta_w
+                if (in_diff != 0 or out_diff != 0) and not self.printed:
+                    print(self.t)
+                    self.printed = True
+        self.J = new_J
+        self.J = normalize(self.J, axis=1) #TODO
 
     def _init_episode_modules(self):
         self.ep_modules = np.array_split(
@@ -170,7 +186,7 @@ class LearningNetwork(object):
         J_idx = 0
 
         # Fill in unshared episode network connectivity matrix
-        ep_weight = 1.25
+        ep_weight = 1.8
         ep_excit = ep_weight/(self.N_ep//self.num_ep_modules)
         ep_inhib = -ep_weight/(self.N_ep - self.N_ep//self.num_ep_modules)
         for m_i in range(self.num_ep_modules):
@@ -220,7 +236,7 @@ class LearningNetwork(object):
             for j in np.arange(1, self.num_shared_units - i):
                 j_ep_unit = self.shared_unit_map[0, j]
                 j_pl_unit = self.shared_unit_map[1, j]
-                total_weight = (
+                total_weight = 0.5*(
                     ep_weights[j_ep_unit] + place_weights[j_pl_unit]
                     )
                 J[J_idx, J_idx + j] = total_weight
@@ -236,7 +252,7 @@ class LearningNetwork(object):
         self.J_episode_indices = J_episode_indices
         self.J_place_indices = J_place_indices
         self.J = J
-        self.J = normalize(self.J, axis=1)
+        #self.J = normalize(self.J, axis=1)
 
     def _g(self, x):
         """
@@ -268,24 +284,31 @@ class HalfLearningNetwork(LearningNetwork):
             overlap=overlap, num_ep_modules=num_ep_modules, start_random=False
             )
 
-    def _update_synapses(self, prev_f, curr_m, fastlearn):
-        try:
-            alpha = 1e-2 if fastlearn else 1e-4
-            for i in range(self.num_units):
-                for j in range(self.num_units):
-                    if i == j: continue
-                    both_ep = i in self.J_episode_indices and j in self.J_episode_indices
-                    both_pl = i in self.J_place_indices and j in self.J_place_indices
-                    if (both_ep or both_pl): continue
-                    w = self.J[i, j]
-                    input_j = prev_f[j]
-                    response_i = curr_m[i]
-                    if input_j < 0 and response_i < 0: continue
-                    input_j = 0 if np.abs(input_j) < 1e-10 else input_j
-                    response_i = 0 if np.abs(response_i) < 1e-10 else response_i
+    def _update_synapses(self, pre, post, fastlearn):
+        new_J = self.J.copy()
+        alpha = 1e-2 if fastlearn else 0
+        if fastlearn:
+            print("fastlearn")
+        for i in range(self.num_units):
+            for j in range(self.num_units):
+                both_ep = i in self.J_episode_indices and j in self.J_episode_indices
+                both_pl = i in self.J_place_indices and j in self.J_place_indices
+                w = self.J[i, j]
+                input_j = pre[j] if abs(pre[j]) > 1e-10 else 0
+                response_i = post[i] if abs(post[i]) > 1e-10 else 0
+                if (i == j) or (input_j < 0 and response_i < 0):# or (both_ep or both_pl):
+                    continue
+                try:
                     delta_w = alpha * response_i * (input_j - response_i * w)
-                    self.J[i,j] += delta_w
-        except:
-            traceback.print_exc()
-            import pdb; pdb.set_trace()
-
+                except:
+                    import pdb; pdb.set_trace()
+                new_J[i,j] += delta_w
+#        if self.t in [11]:
+#            plt.figure()
+#            plt.plot(pre, color="red")
+#            plt.plot(post, color="blue")
+#            plt.show()
+#        if self.t%(36*11) == 0:
+#            pm = PlotMaker()
+#            pm.plot_network_J(self)
+        self.J = new_J

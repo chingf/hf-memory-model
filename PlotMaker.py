@@ -7,7 +7,6 @@ from matplotlib.widgets import Slider, Button, CheckButtons
 from math import pi
 from math import cos
 from math import sin
-from Input import NoisyInput, BehavioralInput
 from Network import OverlapNetwork 
 
 class PlotMaker(object):
@@ -36,7 +35,13 @@ class PlotMaker(object):
         Plots the J of the network with indices arranged by order on ring
         """
 
-        network = sim.network
+        self.plot_network_J(sim.network)
+
+    def plot_network_J(self, network):
+        """
+        Plots the J of the network with indices arranged by order on ring
+        """
+
         N_ep = network.N_ep
         N_pl = network.N_pl
         full_J = np.zeros((N_ep + N_pl, N_ep + N_pl))*np.nan
