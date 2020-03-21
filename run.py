@@ -9,7 +9,7 @@ from math import sin
 from math import cos
 from PlotMaker import PlotMaker
 from Network import OverlapNetwork
-from LearningNetwork import LearningNetwork, HalfLearningNetwork
+from LearningNetwork import LearningNetwork
 from Simulator import Simulator
 from Input import BehavioralInput, NavigationInput
 from Input import CacheInput, MultiCacheInput, WTANavigationInput
@@ -24,7 +24,7 @@ def run_and_plot_overlapnet(overlap=0.):
     K_inhib = 0.18
     network = OverlapNetwork(
         N_pl=N_pl, N_ep=N_ep, K_inhib=K_inhib, overlap=overlap, add_feedback=True,
-        num_internetwork_connections=3, num_ep_modules=10
+        num_internetwork_connections=3, num_ep_modules=6
         )
     inputgen = BehavioralInput(pre_seed_loc=pi)
     sim = Simulator(network, inputgen)
@@ -79,9 +79,9 @@ def run_and_plot_halfnet(overlap=0.):
     N_pl = 100
     N_ep = 100
     K_inhib = 0.18
-    network = HalfLearningNetwork(
+    network = LearningNetwork(
         N_pl=N_pl, N_ep=N_ep, K_inhib=K_inhib, overlap=overlap,
-        num_ep_modules=6
+        num_ep_modules=6, start_random=False
         )
     inputgen = MultiCacheInput()
     sim = Simulator(network, inputgen)
@@ -91,9 +91,9 @@ def run_and_plot_halfnet(overlap=0.):
     import pdb; pdb.set_trace()
 
 def main():
-    for o in [0.]:
+    for o in [0.4]:
         print("Overlap: %1.2f"%o)
-        run_and_plot_learningwtanet(o)
+        run_and_plot_halfnet(o)
 
 if __name__ == "__main__":
     main()

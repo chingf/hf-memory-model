@@ -127,6 +127,7 @@ class MultiCacheInput(Input):
         self.cache_idx = 0
         self.caching = True
         self.T = self.module_length*2 + self.cache_length
+        #self.T = int(self.cache_length*1.5)
 
     def get_inputs(self):
         if self.t < self.T:
@@ -145,7 +146,7 @@ class MultiCacheInput(Input):
                 fastlearn = False
                 if (self.t + 1) % self.module_length == 0: self.caching = True
 #                input_t[self.network.J_episode_indices] += np.random.normal(
-#                    0, 1, self.network.N_ep
+#                    0, 0.5, self.network.N_ep
 #                    )
         else:
             raise StopIteration
@@ -162,13 +163,13 @@ class MultiCacheInput(Input):
             import pdb; pdb.set_trace()
         fastlearn = False
         input_t = np.zeros(self.network.num_units)
-        if t < self.query_length:
+        if t < self.query_length: # Activate episode network and let settle
             if t < self.noise_length:
                 input_t[self.network.J_episode_indices] = np.random.normal(
-                    0, 1, self.network.N_ep
+                    0, 1., self.network.N_ep
                     ) 
             input_t[self.network.J_place_indices] += self._get_sharp_cos(cache_loc)
-        elif self.query_length <= t < self.cache_length:
+        elif self.query_length <= t < self.cache_length: # Fast learn
             fastlearn = True
         input_t[input_t < 0] = 0
         alpha_t = 1.
@@ -186,59 +187,69 @@ class BehavioralInput(Input):
     """
 
     def __init__(self, pre_seed_loc=3*pi/2):
-        self.T = 300
         self.pre_seed_loc = pre_seed_loc 
         self.t = 0
         self.target_seed = np.nan
         self.event_times = [12, 16, 18, 27]
         self.event_times = [s + 10 for s in self.event_times]
-        self.T = 500
+        self.T_sec = 40
+        self.T = self.to_frames(self.T_sec)
 
     def set_current_activity(self, f):
-        if self.t <= (self.event_times[1]*10) + 1:
+        if self.t <= self.to_frames(self.event_times[1]) + 1:
             self.f = f
 
     def get_inputs(self):
         T1, T2, T3, T4 = self.event_times
         t = self.t
         if self.to_seconds(t) < T1: # Free navigation to loc
-            loc_t = ((t/(T1*10)) * (2*pi + self.pre_seed_loc)) % (2*pi)
+            loc_t = ((t/(self.to_frames(T1))) * (2*pi + self.pre_seed_loc)) % (2*pi)
             loc_t = loc_t//(2*pi/16) * (2*pi/16)
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
-            input_t[input_t < 0] = 0
-            alpha_t = 0.6
+            input_t[self.network.J_episode_indices] += np.random.normal(
+                0, 1, self.network.N_ep
+                )
+            alpha_t = 1.
         elif self.to_seconds(t) < T3: # Query for seed
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_episode_indices] = np.random.normal(
                 0, 1, self.network.N_ep
                 )
             input_t[self.network.J_place_indices] = self._get_sharp_cos(self.pre_seed_loc)
-            input_t[input_t < 0] = 0
-            alpha_t = 0.6 if t < (T2*10) else 0
+            alpha_t = 1. if t < self.to_frames(T2) else 0
         elif self.to_seconds(t) < T4: # Navigation to seed
             if np.isnan(self.target_seed):
                 self.set_seed()
-            nav_start = T3*10 
-            nav_time = (T4 - T3) *10
+            nav_start = self.to_frames(T3)
+            nav_time = self.to_frames(T4 - T3)
             nav_distance = self.target_seed - self.pre_seed_loc
             loc_t = ((t - nav_start)/nav_time)*nav_distance + self.pre_seed_loc
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
-            input_t[input_t < 0] = 0
-            alpha_t = 0.6
-        elif t < self.T: # End input, but let network evolve for some time
+            input_t[self.network.J_episode_indices] += np.random.normal(
+                0, 1, self.network.N_ep
+                )
+            alpha_t = 1.
+        elif t < self.T: # End input, but let network evolve
             input_t = np.zeros(self.network.num_units)
             alpha_t = 0
         else:
             raise StopIteration
-        self.inputs[self.t,:] = input_t
+        input_t[input_t < 0] = 0
+        try:
+            self.inputs[self.t,:] = input_t
+        except:
+            import pdb; pdb.set_trace()
         self.alphas[self.t] = alpha_t
         self.t += 1
         return input_t, alpha_t, False
 
-    def to_seconds(self, t):
-        return t/10.
+    def to_seconds(self, frame):
+        return frame/50.
+
+    def to_frames(self, sec):
+        return sec*50
 
     def set_seed(self):
         place_f = self.f[self.network.J_place_indices]
