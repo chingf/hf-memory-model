@@ -51,7 +51,7 @@ class OverlapNetwork(object):
 
     base_J0 = 0.3
     base_J2 = 5.
-    dt = 0.02
+    dt = 0.1
     kappa = 4. 
     vonmises_gain = 3.2
 
@@ -74,7 +74,7 @@ class OverlapNetwork(object):
         self._init_shared_units()
         self._init_J()
         self._init_J_interactions()
-        #self.J = normalize(self.J, axis=1)
+        self.J = normalize(self.J, axis=1, norm="l2")
         self.t = 0
 
     def step(self, prev_m, prev_f, input_t, alpha_t, fastlearn):
@@ -153,7 +153,7 @@ class OverlapNetwork(object):
         J_idx = 0
 
         # Fill in unshared episode network connectivity matrix
-        ep_weight = 1.08
+        ep_weight = 1. 
         ep_excit = ep_weight/(self.N_ep//self.num_ep_modules)
         ep_inhib = -ep_weight/(self.N_ep - self.N_ep//self.num_ep_modules)
         for m_i in range(self.num_ep_modules):
@@ -223,13 +223,12 @@ class OverlapNetwork(object):
         episode_units = self.internetwork_units[0]
         place_units = self.internetwork_units[1]
         interaction_support = np.arange(-self.N_pl//2, self.N_pl//2 + 1)
-        scale = 1.4
+        scale = 2
         for idx, episode_unit in enumerate(episode_units):
             episode_unit = self.J_episode_indices[episode_unit]
             for i in interaction_support:
                 weight_offset = self._get_vonmises_weight(i, 0)
                 weight_offset *= scale
-                if weight_offset < 0: continue
                 place_unit = self.J_place_indices[(place_units[idx]+i)%self.N_pl]
                 self.J[place_unit, episode_unit] = weight_offset
         if self.add_feedback:
@@ -238,7 +237,6 @@ class OverlapNetwork(object):
                 for i in interaction_support:
                     weight_offset = self._get_vonmises_weight(i, 0)
                     weight_offset *= scale
-                    if weight_offset < 0: continue
                     episode_unit = self.J_episode_indices[
                         (episode_units[idx]+i)%self.N_ep
                         ]

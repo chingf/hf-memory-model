@@ -125,7 +125,7 @@ class PlotMaker(object):
         aximg_ep = plt.imshow(
             np.flip(f_ep, axis=0), cmap=plt.cm.coolwarm, norm=norm, aspect='auto'
             )
-        plt.xticks(np.arange(0, T, 100), np.arange(0, T//10, 10))
+        plt.xticks(np.arange(0, T, 10), np.arange(0, T//50, 10))
         plt.yticks([0, N_ep//2, N_ep - 1], ["2Pi", "Pi", "0"])
         plt.ylabel("Episode Network", fontsize=14)
 
@@ -149,7 +149,7 @@ class PlotMaker(object):
         plt.ylabel("Place Network", fontsize=14)
 
         # Plots the seconds on the x axis of the last subplot
-        plt.xticks(np.arange(0, T, 100), np.arange(0, T//10, 10))
+        plt.xticks(np.arange(0, T, 10), np.arange(0, T//50, 10))
         plt.xlabel("Seconds")
 
         return aximg_ep, aximg_pl

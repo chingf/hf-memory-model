@@ -207,17 +207,14 @@ class BehavioralInput(Input):
             loc_t = loc_t//(2*pi/16) * (2*pi/16)
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
-            input_t[self.network.J_episode_indices] += np.random.normal(
-                0, 1, self.network.N_ep
-                )
-            alpha_t = 1.
+            input_t[input_t < 0] = 0
+            alpha_t = 0.6
         elif self.to_seconds(t) < T3: # Query for seed
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_episode_indices] = np.random.normal(
                 0, 1, self.network.N_ep
                 )
-            input_t[self.network.J_place_indices] = self._get_sharp_cos(self.pre_seed_loc)
-            alpha_t = 1. if t < self.to_frames(T2) else 0
+            alpha_t = 0.6 if t < self.to_frames(T2) else 0
         elif self.to_seconds(t) < T4: # Navigation to seed
             if np.isnan(self.target_seed):
                 self.set_seed()
@@ -227,30 +224,29 @@ class BehavioralInput(Input):
             loc_t = ((t - nav_start)/nav_time)*nav_distance + self.pre_seed_loc
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
-            input_t[self.network.J_episode_indices] += np.random.normal(
-                0, 1, self.network.N_ep
-                )
-            alpha_t = 1.
+            input_t[input_t < 0] = 0
+            alpha_t = 0.6
         elif t < self.T: # End input, but let network evolve
             input_t = np.zeros(self.network.num_units)
             alpha_t = 0
         else:
             raise StopIteration
-        input_t[input_t < 0] = 0
-        try:
-            self.inputs[self.t,:] = input_t
-        except:
-            import pdb; pdb.set_trace()
+        self.inputs[self.t,:] = input_t
         self.alphas[self.t] = alpha_t
         self.t += 1
         return input_t, alpha_t, False
 
     def to_seconds(self, frame):
-        return frame/50.
+        return frame/10.
 
     def to_frames(self, sec):
-        return sec*50
+        return sec*10
 
     def set_seed(self):
         place_f = self.f[self.network.J_place_indices]
-        self.target_seed = (np.argmax(place_f)/self.network.N_pl)*(2*pi)
+        place_locs = np.linspace(0, 2*pi, self.network.N_pl, endpoint=False)
+        place_locs = place_locs[place_f > 0]
+        place_weights = place_f[place_f > 0]
+        target_loc = np.average(place_locs, weights=place_weights)
+        self.target_seed = target_loc
+
