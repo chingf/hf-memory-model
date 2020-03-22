@@ -191,8 +191,9 @@ class BehavioralInput(Input):
         self.t = 0
         self.target_seed = np.nan
         self.event_times = [12, 16, 18, 27]
-        self.event_times = [s + 10 for s in self.event_times]
-        self.T_sec = 40
+        self.event_times = [1, 1.2, 1.35, 2]
+        self.event_times = [8, 8.15, 8.25, 9]
+        self.T_sec = self.event_times[-1]
         self.T = self.to_frames(self.T_sec)
 
     def set_current_activity(self, f):
@@ -208,13 +209,17 @@ class BehavioralInput(Input):
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
             input_t[input_t < 0] = 0
-            alpha_t = 0.6
+            alpha_t = 1.
         elif self.to_seconds(t) < T3: # Query for seed
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_episode_indices] = np.random.normal(
                 0, 1, self.network.N_ep
                 )
-            alpha_t = 0.6 if t < self.to_frames(T2) else 0
+#            input_t[self.network.J_place_indices] += self._get_sharp_cos(
+#                self.pre_seed_loc
+#                )
+            input_t[input_t < 0] = 0
+            alpha_t = 1. if t < self.to_frames(T2) else 0
         elif self.to_seconds(t) < T4: # Navigation to seed
             if np.isnan(self.target_seed):
                 self.set_seed()
@@ -225,7 +230,7 @@ class BehavioralInput(Input):
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
             input_t[input_t < 0] = 0
-            alpha_t = 0.6
+            alpha_t = 1.
         elif t < self.T: # End input, but let network evolve
             input_t = np.zeros(self.network.num_units)
             alpha_t = 0
@@ -237,10 +242,10 @@ class BehavioralInput(Input):
         return input_t, alpha_t, False
 
     def to_seconds(self, frame):
-        return frame/10.
+        return frame/50.
 
     def to_frames(self, sec):
-        return sec*10
+        return sec*50
 
     def set_seed(self):
         place_f = self.f[self.network.J_place_indices]
@@ -248,5 +253,6 @@ class BehavioralInput(Input):
         place_locs = place_locs[place_f > 0]
         place_weights = place_f[place_f > 0]
         target_loc = np.average(place_locs, weights=place_weights)
+        print(target_loc/(2*pi))
         self.target_seed = target_loc
 

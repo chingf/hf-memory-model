@@ -51,8 +51,9 @@ class OverlapNetwork(object):
 
     base_J0 = 0.3
     base_J2 = 5.
-    dt = 0.1
-    kappa = 4. 
+    tau = 0.02 # time constant (in ms)
+    dt = 0.02
+    kappa = 4.
     vonmises_gain = 3.2
 
     def __init__(
@@ -94,7 +95,7 @@ class OverlapNetwork(object):
 
         h_ext = alpha_t*input_t
         f_t = self.J @ self._g(prev_m) + self._g(h_ext)
-        dmdt = -prev_m + f_t - self.K_inhib
+        dmdt = (-prev_m + f_t - self.K_inhib)/self.tau
         m_t = prev_m + self.dt*dmdt 
         return m_t, f_t
 
@@ -124,7 +125,6 @@ class OverlapNetwork(object):
                 neighbors = [int(c + i)%self.N_pl for i in np.arange(-2, 3)]
                 place_units.extend(neighbors)
             self.internetwork_units = np.array([episode_units, place_units])
-            print(self.internetwork_units)
 
     def _init_shared_units(self):
         """ Determines which units are shared between the two networks """
@@ -140,7 +140,6 @@ class OverlapNetwork(object):
         self.shared_unit_map = shared_unit_map
         self.num_shared_units = num_shared_units
         self.num_units = self.N_ep + self.N_pl - num_shared_units
-        np.random.seed()
 
     def _init_J(self):
         """ Initializes the connectivity matrix J """
@@ -153,7 +152,7 @@ class OverlapNetwork(object):
         J_idx = 0
 
         # Fill in unshared episode network connectivity matrix
-        ep_weight = 1. 
+        ep_weight = 1.
         ep_excit = ep_weight/(self.N_ep//self.num_ep_modules)
         ep_inhib = -ep_weight/(self.N_ep - self.N_ep//self.num_ep_modules)
         for m_i in range(self.num_ep_modules):
@@ -223,7 +222,7 @@ class OverlapNetwork(object):
         episode_units = self.internetwork_units[0]
         place_units = self.internetwork_units[1]
         interaction_support = np.arange(-self.N_pl//2, self.N_pl//2 + 1)
-        scale = 2
+        scale = 1.
         for idx, episode_unit in enumerate(episode_units):
             episode_unit = self.J_episode_indices[episode_unit]
             for i in interaction_support:

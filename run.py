@@ -21,7 +21,7 @@ def run_and_plot_overlapnet(overlap=0.):
 
     N_pl = 100
     N_ep = 100 
-    K_inhib = 0.178
+    K_inhib = 0.15
     network = OverlapNetwork(
         N_pl=N_pl, N_ep=N_ep, K_inhib=K_inhib, overlap=overlap, add_feedback=True,
         num_internetwork_connections=3, num_ep_modules=7
@@ -91,7 +91,7 @@ def run_and_plot_halfnet(overlap=0.):
     import pdb; pdb.set_trace()
 
 def main():
-    for o in [0.4]:
+    for o in [0.5]:
         print("Overlap: %1.2f"%o)
         run_and_plot_overlapnet(o)
 
