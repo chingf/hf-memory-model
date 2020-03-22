@@ -51,8 +51,9 @@ class OverlapNetwork(object):
 
     base_J0 = 0.3
     base_J2 = 5.
-    tau = 0.02 # time constant (in ms)
-    dt = 0.02
+    tau = 1#0.02 # time constant (in ms)
+    dt = 0.5#0.02
+    steps_in_s = (1/dt)*50
     kappa = 4.
     vonmises_gain = 3.2
 
@@ -116,6 +117,9 @@ class OverlapNetwork(object):
             center_pl_units = np.linspace(
                 0, self.N_pl, self.num_internetwork_connections, endpoint=False
                 )
+            if self.num_internetwork_connections == 1:
+                center_ep_units = np.array([self.N_ep/2])
+                center_pl_units = np.array([self.N_pl/2])
             episode_units = []
             place_units = []
             for c in center_ep_units:
@@ -152,7 +156,7 @@ class OverlapNetwork(object):
         J_idx = 0
 
         # Fill in unshared episode network connectivity matrix
-        ep_weight = 1.
+        ep_weight = 0.8
         ep_excit = ep_weight/(self.N_ep//self.num_ep_modules)
         ep_inhib = -ep_weight/(self.N_ep - self.N_ep//self.num_ep_modules)
         for m_i in range(self.num_ep_modules):

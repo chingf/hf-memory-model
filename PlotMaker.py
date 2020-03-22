@@ -7,7 +7,6 @@ from matplotlib.widgets import Slider, Button, CheckButtons
 from math import pi
 from math import cos
 from math import sin
-from Network import OverlapNetwork 
 
 class PlotMaker(object):
     """Makes plots to visualize a ring network."""

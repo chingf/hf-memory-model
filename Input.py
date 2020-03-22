@@ -1,5 +1,5 @@
 import numpy as np
-from math import pi
+from math import pi, cos, sin, radians, degrees, atan2
 
 class Input(object):
     """
@@ -32,32 +32,10 @@ class Input(object):
         curve = np.roll(curve, loc_idx - self.network.N_pl//2)
         return curve
 
-class WTANavigationInput(Input):
-    """ Navigation input into WTA network """
-
-    def __init__(self, T=1300):
-        self.T = T
-        self.t = 0
-
-    def get_inputs(self):
-        if self.t < self.T:
-            period = 50
-            loc_t = ((self.t % period)/period)*(2*pi)
-            input_t = np.zeros(self.network.num_units)
-            input_t[self.network.J_episode_indices] = self._get_sharp_cos(loc_t)
-            alpha_t = 1.
-            input_t[input_t < 0] = 0
-            self.inputs[self.t,:] = input_t
-            self.alphas[self.t] = alpha_t
-            self.t += 1
-            return input_t, alpha_t, False
-        else:
-            raise StopIteration
-
 class NavigationInput(Input):
     """ Feeds in navigation input to the place network. """
 
-    def __init__(self, T=1300):
+    def __init__(self, T=1800):
         self.T = T
         self.t = 0
 
@@ -72,7 +50,7 @@ class NavigationInput(Input):
             self.inputs[self.t,:] = input_t
             self.alphas[self.t] = alpha_t
             self.t += 1
-            return input_t, alpha_t, False
+            return input_t, alpha_t, 1
         else:
             raise StopIteration
 
@@ -91,7 +69,6 @@ class MultiCacheInput(Input):
         self.cache_idx = 0
         self.caching = True
         self.T = self.module_length*2 + self.cache_length
-        #self.T = int(self.cache_length*1.5)
 
     def get_inputs(self):
         if self.t < self.T:
@@ -109,9 +86,6 @@ class MultiCacheInput(Input):
                 alpha_t = 1. 
                 fastlearn = False
                 if (self.t + 1) % self.module_length == 0: self.caching = True
-#                input_t[self.network.J_episode_indices] += np.random.normal(
-#                    0, 0.5, self.network.N_ep
-#                    )
         else:
             raise StopIteration
         self.inputs[self.t,:] = input_t
@@ -156,9 +130,8 @@ class BehavioralInput(Input):
         self.target_seed = np.nan
         self.event_times = [12, 16, 18, 27]
         self.event_times = [1, 1.2, 1.35, 2]
-        self.event_times = [8, 8.15, 8.25, 9]
+        self.event_times = [8, 8.3, 8.4, 12]
         self.T_sec = self.event_times[-1]
-        self.T = self.to_frames(self.T_sec)
 
     def set_current_activity(self, f):
         if self.t <= self.to_frames(self.event_times[1]) + 1:
@@ -173,6 +146,9 @@ class BehavioralInput(Input):
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
             input_t[input_t < 0] = 0
+            input_t[self.network.J_episode_indices] += np.random.normal(
+                0, 0.5, self.network.N_ep
+                )
             alpha_t = 1.
         elif self.to_seconds(t) < T3: # Query for seed
             input_t = np.zeros(self.network.num_units)
@@ -200,20 +176,35 @@ class BehavioralInput(Input):
         self.inputs[self.t,:] = input_t
         self.alphas[self.t] = alpha_t
         self.t += 1
-        return input_t, alpha_t, False
+        return input_t, alpha_t, 0
 
     def to_seconds(self, frame):
-        return frame/50.
+        return frame/self.network.steps_in_s
 
     def to_frames(self, sec):
-        return sec*50
+        return sec*self.network.steps_in_s
 
     def set_seed(self):
         place_f = self.f[self.network.J_place_indices]
         place_locs = np.linspace(0, 2*pi, self.network.N_pl, endpoint=False)
         place_locs = place_locs[place_f > 0]
         place_weights = place_f[place_f > 0]
-        target_loc = np.average(place_locs, weights=place_weights)
+        if place_locs.size == 0:
+            target_loc = pi
+        else:
+            target_loc = np.average(place_locs, weights=place_weights)
+#        x = y = 0.
+#        for angle, weight in zip(place_locs, place_weights):
+#            x += cos(angle) * weight
+#            y += sin(angle) * weight
+#        target_loc = degrees(atan2(y, x))
         print(target_loc/(2*pi))
         self.target_seed = target_loc
+
+    def set_network(self, network):
+        self.network = network
+        self.f = np.zeros(network.num_units)
+        self.T = int(self.to_frames(self.T_sec))
+        self.inputs = np.zeros((self.T, network.num_units))
+        self.alphas = np.zeros(self.T)
 

@@ -60,26 +60,27 @@ class LearningNetwork(object):
     dt = 0.1
     kappa = 4. 
     vonmises_gain = 3.2
-    norm_scale = 5
+    norm_scale = 10
 
     def __init__(
             self, N_pl, N_ep, K_inhib,
-            overlap=0, num_ep_modules=3, start_random=False
+            overlap=0, num_wta_modules=3, start_random=False
             ):
         self.N_pl = N_pl
         self.N_ep = N_ep
         self.K_inhib = K_inhib
         self.overlap = overlap
-        self.num_ep_modules = num_ep_modules
+        self.num_ep_modules = 10#num_wta_modules
+        self.num_pl_modules = num_wta_modules
         self.start_random = start_random
         self.J0 = self.base_J0/N_pl
         self.J2 = self.base_J2/N_pl
         self.internetwork_units = np.array([[], []])
-        self._init_episode_modules()
+        self._init_wta_modules()
         self._init_shared_units()
         self._init_J()
+        self.steps_in_s = 10*50
         self.t = 0
-        self.printed = False
 
     def step(self, prev_m, prev_f, input_t, alpha_t, fastlearn):
         """
@@ -104,7 +105,16 @@ class LearningNetwork(object):
         return m_t, f_t
 
     def _update_synapses(self, pre, post, fastlearn):
-        alpha = 1e-2 if fastlearn else 1e-4
+        if type(fastlearn) is int:
+            if fastlearn == 1:
+                alpha = 1e-4
+                pl_only = True
+            elif fastlearn == 0:
+                alpha = 0
+                pl_only = False
+        else:
+            alpha = 1e-2 if fastlearn else 1e-4
+            pl_only = False
         pre[np.abs(pre) < 1e-10] = 0
         post[np.abs(post) < 1e-10] = 0
         delta = alpha * np.outer(post, pre)
@@ -112,12 +122,19 @@ class LearningNetwork(object):
             np.argwhere(post < 0).squeeze(), np.argwhere(pre < 0).squeeze()
             )
         delta[inhibitory_idxs] = 0
+        np.fill_diagonal(delta, 0)
+        if pl_only:
+            delta[self.J_episode_indices_unshared, :] = 0
+            delta[:, self.J_episode_indices_unshared] = 0
         self.J += delta
         self.J = normalize(self.J, axis=1, norm="l1")*self.norm_scale
 
-    def _init_episode_modules(self):
+    def _init_wta_modules(self):
         self.ep_modules = np.array_split(
             np.arange(self.N_ep).astype(int), self.num_ep_modules
+            )
+        self.pl_modules = np.array_split(
+            np.arange(self.N_pl).astype(int), self.num_pl_modules
             )
 
     def _init_shared_units(self):
@@ -170,28 +187,36 @@ class LearningNetwork(object):
         J_idx = 0
 
         # Fill in unshared episode network connectivity matrix
-        ep_weight = 1.
-        ep_excit = ep_weight/(self.N_ep//self.num_ep_modules)
-        ep_inhib = -ep_weight/(self.N_ep - self.N_ep//self.num_ep_modules)
+        wta_weight = 1.
+        wta_excit = wta_weight/(self.N_ep//self.num_ep_modules)
+        wta_inhib = -wta_weight/(self.N_ep - self.N_ep//self.num_ep_modules)
         for m_i in range(self.num_ep_modules):
             module = self.ep_modules[m_i]
             for i in module:
                 if i in self.shared_unit_map[0]: continue
-                weights = np.ones(self.N_ep)*ep_inhib
-                weights[module] = ep_excit
+                weights = np.ones(self.N_ep)*wta_inhib
+                weights[module] = wta_excit
                 weights = np.delete(weights, self.shared_unit_map[0])
                 J[J_idx, :weights.size] = weights
                 J_episode_indices[i] = int(J_idx)
                 J_idx += 1
 
         # Fill in unshared place network connectivity matrix
-        for i in range(self.N_pl):
-            if i in self.shared_unit_map[1]: continue
-            weights = self._get_vonmises(i)
-            weights = np.delete(weights, self.shared_unit_map[1])
-            J[J_idx, num_unshared_ep:num_unshared_ep + num_unshared_pl] = weights
-            J_place_indices[i] = int(J_idx)
-            J_idx += 1
+        wta_weight = 1.
+        wta_excit = wta_weight/(self.N_pl//self.num_pl_modules)
+        wta_inhib = -wta_weight/(self.N_pl - self.N_pl//self.num_pl_modules)
+        for m_i in range(self.num_pl_modules):
+            module = self.pl_modules[m_i]
+            for i in module:
+                if i in self.shared_unit_map[1]: continue
+                weights = np.ones(self.N_pl)*wta_inhib
+                weights[module] = wta_excit
+                weights = np.delete(weights, self.shared_unit_map[1])
+                J[J_idx,
+                    num_unshared_ep:num_unshared_ep + weights.size
+                    ] = weights
+                J_place_indices[i] = int(J_idx)
+                J_idx += 1
 
         # Fill in shared units for episode and place
         for i in range(self.num_shared_units):
@@ -202,15 +227,19 @@ class LearningNetwork(object):
             ep_module_idx = np.argwhere(
                 [ep_unit in m for m in self.ep_modules]
                 )[0,0]
-            ep_weights = np.ones(self.N_ep)*ep_inhib
-            ep_weights[self.ep_modules[ep_module_idx]] = ep_excit
+            wta_weights = np.ones(self.N_ep)*wta_inhib
+            wta_weights[self.ep_modules[ep_module_idx]] = wta_excit
             for ep in range(self.N_ep):
                 if ep in self.shared_unit_map[0]: continue
-                J[J_idx, J_episode_indices[ep]] = ep_weights[ep]
-                J[J_episode_indices[ep], J_idx] = ep_weights[ep]
+                J[J_idx, J_episode_indices[ep]] = wta_weights[ep]
+                J[J_episode_indices[ep], J_idx] = wta_weights[ep]
 
             # Weights between shared unit and unshared place unit
-            place_weights = self._get_vonmises(pl_unit)
+            pl_module_idx = np.argwhere(
+                [pl_unit in m for m in self.pl_modules]
+                )[0,0]
+            place_weights = np.ones(self.N_pl)*wta_inhib
+            place_weights[self.pl_modules[pl_module_idx]] = wta_excit
             for place in range(self.N_pl):
                 if place in self.shared_unit_map[1]: continue
                 J[J_idx, J_place_indices[place]] = place_weights[place]
@@ -221,7 +250,7 @@ class LearningNetwork(object):
                 j_ep_unit = self.shared_unit_map[0, j]
                 j_pl_unit = self.shared_unit_map[1, j]
                 total_weight = 0.5*(
-                    ep_weights[j_ep_unit] + place_weights[j_pl_unit]
+                    wta_weights[j_ep_unit] + place_weights[j_pl_unit]
                     )
                 J[J_idx, J_idx + j] = total_weight
                 J[J_idx + j, J_idx] = total_weight
@@ -231,10 +260,12 @@ class LearningNetwork(object):
             J_idx += 1
 
         # Remove any self-excitation
-        for i in range(self.num_units):
-            J[i,i] = 0
+        np.fill_diagonal(J, 0)
         self.J_episode_indices = J_episode_indices
         self.J_place_indices = J_place_indices
+        self.J_episode_indices_unshared = [
+            i for u, i in enumerate(J_episode_indices) if u not in self.shared_unit_map[0]
+            ]
         self.J = J
         self.J = normalize(self.J, axis=1, norm="l1")*self.norm_scale
 
@@ -258,4 +289,3 @@ class LearningNetwork(object):
         curve -= np.max(curve)/2.
         curve *= self.vonmises_gain
         curve = np.roll(curve, center - self.N_pl//2)
-        return -self.J0 + self.J2*curve
