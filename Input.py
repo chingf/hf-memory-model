@@ -124,14 +124,15 @@ class BehavioralInput(Input):
         - Move to seed location (4 sec)
     """
 
-    def __init__(self, pre_seed_loc=3*pi/2):
+    def __init__(self, pre_seed_loc=3*pi/2, K_inhib=K_inhib):
         self.pre_seed_loc = pre_seed_loc 
         self.t = 0
         self.target_seed = np.nan
         self.event_times = [12, 16, 18, 27]
         self.event_times = [1, 1.2, 1.35, 2]
-        self.event_times = [8, 8.3, 8.4, 12]
+        self.event_times = [8, 8.3, 8.6, 12]
         self.T_sec = self.event_times[-1]
+        self.K_inhib = K_inhib
 
     def set_current_activity(self, f):
         if self.t <= self.to_frames(self.event_times[1]) + 1:
@@ -154,7 +155,7 @@ class BehavioralInput(Input):
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_episode_indices] = np.random.normal(
                 0, 1, self.network.N_ep
-                )
+                ) + self.K_inhib
             input_t[input_t < 0] = 0
             alpha_t = 1. if t < self.to_frames(T2) else 0
         elif self.to_seconds(t) < T4: # Navigation to seed

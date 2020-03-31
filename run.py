@@ -22,12 +22,12 @@ def run_and_plot_overlapnet(overlap=0.):
 
     N_pl = 100
     N_ep = 100 
-    K_inhib = 0.18
+    K_inhib = 0.8
     network = OverlapNetwork(
         N_pl=N_pl, N_ep=N_ep, K_inhib=K_inhib, overlap=overlap, add_feedback=True,
         num_internetwork_connections=1, num_ep_modules=10
         )
-    inputgen = BehavioralInput(pre_seed_loc=pi/2)
+    inputgen = BehavioralInput(pre_seed_loc=pi/2, K_inhib=K_inhib)
     sim = Simulator(network, inputgen)
     m, f = sim.simulate()
     pm.plot_main(sim, f)
@@ -106,7 +106,7 @@ def run_and_plot_endtoend(overlap=0.):
 def main():
     for o in [0.4]:
         print("Overlap: %1.2f"%o)
-        run_and_plot_endtoend(o)
+        run_and_plot_overlapnet(o)
 
 if __name__ == "__main__":
     main()

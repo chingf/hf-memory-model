@@ -95,8 +95,9 @@ class OverlapNetwork(object):
         """
 
         h_ext = alpha_t*input_t
-        f_t = self.J @ self._g(prev_m) + self._g(h_ext)
-        dmdt = (-prev_m + f_t - self.K_inhib)/self.tau
+        total_input = self.J @ self._g(prev_m) + h_ext
+        f_t = self._g(total_input)
+        dmdt = (-prev_m + total_input - self.K_inhib)/self.tau
         m_t = prev_m + self.dt*dmdt 
         return m_t, f_t
 

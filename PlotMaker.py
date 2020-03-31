@@ -120,7 +120,8 @@ class PlotMaker(object):
         plt.subplot2grid(
             (gridrows, gridcols), (rowspan,0), rowspan=rowspan, colspan=colspan
             )
-        norm = mcolors.DivergingNorm(vmin=f.min(), vmax = f.max(), vcenter=0)
+        vcenter = (f.min() + f.max())/2
+        norm = mcolors.DivergingNorm(vmin=f.min(), vmax = f.max(), vcenter=vcenter)
         aximg_ep = plt.imshow(
             np.flip(f_ep, axis=0), cmap=plt.cm.coolwarm, norm=norm, aspect='auto'
             )
@@ -140,7 +141,8 @@ class PlotMaker(object):
         plt.subplot2grid(
             (gridrows, gridcols), (rowspan*2,0), rowspan=rowspan, colspan=colspan
             )
-        norm = mcolors.DivergingNorm(vmin=f.min(), vmax = f.max(), vcenter=0)
+        vcenter = (f.min() + f.max())/2
+        norm = mcolors.DivergingNorm(vmin=f.min(), vmax = f.max(), vcenter=vcenter)
         aximg_pl = plt.imshow(
             np.flip(f_pl, axis=0), cmap=plt.cm.coolwarm, norm=norm, aspect='auto'
             )
