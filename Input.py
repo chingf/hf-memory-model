@@ -41,7 +41,7 @@ class NavigationInput(Input):
 
     def get_inputs(self):
         if self.t < self.T:
-            period = 50
+            period = 100
             loc_t = ((self.t % period)/period)*(2*pi)
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)

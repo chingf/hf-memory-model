@@ -98,22 +98,25 @@ class LearningNetwork(object):
         """
 
         h_ext = alpha_t*input_t
-        f_t = self.J @ self._g(prev_m) + h_ext - self.K_inhib
-        dmdt = -prev_m + f_t
+        total_input = self.J @ self._g(prev_m) + h_ext - self.K_inhib
+        dmdt = -prev_m + total_input
         m_t = prev_m + self.dt*dmdt
+        f_t = self._g(m_t)
         self._update_synapses(f_t, f_t, fastlearn)
         return m_t, f_t
 
     def _update_synapses(self, pre, post, fastlearn):
+        pre = pre - self.K_inhib
+        post = post - self.K_inhib
         if type(fastlearn) is int:
             if fastlearn == 1:
-                alpha = 1e-4
-                pl_only = True
+                alpha = 1e-3
+                pl_only = False
             elif fastlearn == 0:
                 alpha = 0
                 pl_only = False
         else:
-            alpha = 1e-2 if fastlearn else 1e-4
+            alpha = 1e-2 if fastlearn else 1e-3
             pl_only = False
         pre[np.abs(pre) < 1e-10] = 0
         post[np.abs(post) < 1e-10] = 0
