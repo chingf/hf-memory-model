@@ -13,7 +13,7 @@ from LearningNetwork import LearningNetwork
 from IsolatedNetwork import IsolatedNetwork
 from Simulator import Simulator
 from Input import BehavioralInput, NavigationInput
-from Input import MultiCacheInput, GroupedInput
+from Input import MultiCacheInput
 
 pm = PlotMaker()
 
@@ -98,23 +98,6 @@ def run_and_plot_endtoend(overlap=0.):
     pm.plot_J(sim)
     inputgen = BehavioralInput(pre_seed_loc=pi/2)
     sim = Simulator(network, inputgen)
-    m, f = sim.simulate()
-    pm.plot_main(sim, f)
-    pm.plot_J(sim)
-    import pdb; pdb.set_trace()
-
-def run_and_plot_ringtowtanet(overlap=0.):
-    """
-    Runs and plots a place and episode network learning inter-network
-    connections.
-    """
-
-    N = 100
-    K_inhib = 0.18
-    network = IsolatedNetwork(N=N, K_inhib=K_inhib, mode="ring")
-    inputgen = GroupedInput(T=5000, num_modules=5)
-    sim = Simulator(network, inputgen)
-    pm.plot_J(sim)
     m, f = sim.simulate()
     pm.plot_main(sim, f)
     pm.plot_J(sim)

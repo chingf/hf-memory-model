@@ -54,35 +54,6 @@ class NavigationInput(Input):
         else:
             raise StopIteration
 
-class GroupedInput(Input):
-    """ Feeds in navigation input to the place network. """
-
-    def __init__(self, T=1800, num_modules=5):
-        self.T = T
-        self.num_modules = num_modules
-        self.t = 0
-
-    def get_inputs(self):
-        if self.t < self.T:
-            period = 100
-            N = self.network.num_units
-            bins = np.linspace(0, N, self.num_modules, endpoint=False)
-            module = np.digitize(((self.t % period)/period)*N, bins) - 1
-            bins = np.append(bins, N)
-            try:
-                loc_t = np.arange(bins[module], bins[module+1]).astype(int)
-            except:
-                import pdb; pdb.set_trace()
-            input_t = np.zeros(self.network.num_units)
-            input_t[loc_t] = 1.
-            alpha_t = 1.
-            self.inputs[self.t,:] = input_t
-            self.alphas[self.t] = alpha_t
-            self.t += 1
-            return input_t, alpha_t, False
-        else:
-            raise StopIteration
-
 class MultiCacheInput(Input):
     """ Feeds in random noise into episode network and navigation input. """
 
