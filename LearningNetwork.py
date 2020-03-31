@@ -70,7 +70,7 @@ class LearningNetwork(object):
         self.N_ep = N_ep
         self.K_inhib = K_inhib
         self.overlap = overlap
-        self.num_ep_modules = 10#num_wta_modules
+        self.num_ep_modules = num_wta_modules
         self.num_pl_modules = num_wta_modules
         self.start_random = start_random
         self.J0 = self.base_J0/N_pl
@@ -101,7 +101,7 @@ class LearningNetwork(object):
         f_t = self.J @ self._g(prev_m) + h_ext - self.K_inhib
         dmdt = -prev_m + f_t
         m_t = prev_m + self.dt*dmdt
-        self._update_synapses(prev_f, f_t, fastlearn)
+        self._update_synapses(f_t, f_t, fastlearn)
         return m_t, f_t
 
     def _update_synapses(self, pre, post, fastlearn):
@@ -289,3 +289,4 @@ class LearningNetwork(object):
         curve -= np.max(curve)/2.
         curve *= self.vonmises_gain
         curve = np.roll(curve, center - self.N_pl//2)
+        return -self.J0 + self.J2*curve
