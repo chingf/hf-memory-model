@@ -124,15 +124,16 @@ class BehavioralInput(Input):
         - Move to seed location (4 sec)
     """
 
-    def __init__(self, pre_seed_loc=3*pi/2, K_inhib=K_inhib):
+    def __init__(self, pre_seed_loc=3*pi/2, K_pl=0, K_ep=0):
         self.pre_seed_loc = pre_seed_loc 
         self.t = 0
         self.target_seed = np.nan
         self.event_times = [12, 16, 18, 27]
         self.event_times = [1, 1.2, 1.35, 2]
-        self.event_times = [8, 8.3, 8.6, 12]
+        self.event_times = [8, 9., 9.2, 12]
         self.T_sec = self.event_times[-1]
-        self.K_inhib = K_inhib
+        self.K_pl = K_pl
+        self.K_ep = K_ep
 
     def set_current_activity(self, f):
         if self.t <= self.to_frames(self.event_times[1]) + 1:
@@ -149,13 +150,13 @@ class BehavioralInput(Input):
             input_t[input_t < 0] = 0
             input_t[self.network.J_episode_indices] += np.random.normal(
                 0, 0.5, self.network.N_ep
-                )
+                ) - 0.3
             alpha_t = 1.
         elif self.to_seconds(t) < T3: # Query for seed
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_episode_indices] = np.random.normal(
                 0, 1, self.network.N_ep
-                ) + self.K_inhib
+                ) + self.K_ep
             input_t[input_t < 0] = 0
             alpha_t = 1. if t < self.to_frames(T2) else 0
         elif self.to_seconds(t) < T4: # Navigation to seed
@@ -167,6 +168,9 @@ class BehavioralInput(Input):
             loc_t = ((t - nav_start)/nav_time)*nav_distance + self.pre_seed_loc
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
+            input_t[self.network.J_episode_indices] += np.random.normal(
+                0, 0.5, self.network.N_ep
+                )
             input_t[input_t < 0] = 0
             alpha_t = 1.
         elif t < self.T: # End input, but let network evolve

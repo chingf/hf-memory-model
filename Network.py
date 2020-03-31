@@ -58,13 +58,14 @@ class OverlapNetwork(object):
     vonmises_gain = 3.2
 
     def __init__(
-            self, N_pl, N_ep, K_inhib,
+            self, N_pl, N_ep, K_pl, K_ep,
             overlap=0, num_internetwork_connections=3, num_ep_modules=3,
             add_feedback=False
             ):
         self.N_pl = N_pl
         self.N_ep = N_ep
-        self.K_inhib = K_inhib
+        self.K_pl = K_pl
+        self.K_ep = K_ep
         self.overlap = overlap
         self.num_internetwork_connections = num_internetwork_connections
         self.num_ep_modules = num_ep_modules
@@ -96,9 +97,12 @@ class OverlapNetwork(object):
 
         h_ext = alpha_t*input_t
         total_input = self.J @ self._g(prev_m) + h_ext
-        f_t = self._g(total_input)
-        dmdt = (-prev_m + total_input - self.K_inhib)/self.tau
-        m_t = prev_m + self.dt*dmdt 
+        total_input[self.J_place_only] -= self.K_pl
+        total_input[self.J_episode_only] -= self.K_ep
+        total_input[self.J_shared] -= (self.K_pl + self.K_ep)/2
+        dmdt = (-prev_m + total_input)/self.tau
+        m_t = prev_m + self.dt*dmdt
+        f_t = self._g(m_t)
         return m_t, f_t
 
     def _init_episode_modules(self):
@@ -154,6 +158,9 @@ class OverlapNetwork(object):
         J = np.zeros((self.num_units, self.num_units))
         J_episode_indices = np.zeros(self.N_ep).astype(int)
         J_place_indices = np.zeros(self.N_pl).astype(int)
+        J_episode_only = []
+        J_place_only = []
+        J_shared = []
         J_idx = 0
 
         # Fill in unshared episode network connectivity matrix
@@ -169,6 +176,7 @@ class OverlapNetwork(object):
                 weights = np.delete(weights, self.shared_unit_map[0])
                 J[J_idx, :weights.size] = weights
                 J_episode_indices[i] = int(J_idx)
+                J_episode_only = int(J_idx)
                 J_idx += 1
 
         # Fill in unshared place network connectivity matrix
@@ -178,6 +186,7 @@ class OverlapNetwork(object):
             weights = np.delete(weights, self.shared_unit_map[1])
             J[J_idx, num_unshared_ep:num_unshared_ep + num_unshared_pl] = weights
             J_place_indices[i] = int(J_idx)
+            J_place_only = int(J_idx)
             J_idx += 1
 
         # Fill in shared units for episode and place
@@ -215,10 +224,14 @@ class OverlapNetwork(object):
 
             J_episode_indices[ep_unit] = int(J_idx)
             J_place_indices[pl_unit] = int(J_idx)
+            J_shared = int(J_idx)
             J_idx += 1
 
         self.J_episode_indices = J_episode_indices
         self.J_place_indices = J_place_indices
+        self.J_episode_only = np.array(J_episode_only)
+        self.J_place_only = np.array(J_place_only)
+        self.J_shared = np.array(J_shared)
         self.J = J
 
     def _init_J_interactions(self):
