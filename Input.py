@@ -57,7 +57,7 @@ class NavigationInput(Input):
 class MultiCacheInput(Input):
     """ Feeds in random noise into episode network and navigation input. """
 
-    def __init__(self):
+    def __init__(self, K_ep):
         self.t = 0
         self.noise_length = 30
         self.query_length = 33
@@ -68,6 +68,7 @@ class MultiCacheInput(Input):
         self.cache_locs = [0, 2*pi/3, 4*pi/3]
         self.cache_idx = 0
         self.caching = True
+        self.K_ep = K_ep
         self.T = self.module_length*2 + self.cache_length
 
     def get_inputs(self):
@@ -82,6 +83,9 @@ class MultiCacheInput(Input):
                 loc_t += prev_loc
                 input_t = np.zeros(self.network.num_units)
                 input_t[self.network.J_place_indices] += self._get_sharp_cos(loc_t)
+                input_t[self.network.J_episode_indices] += np.random.normal(
+                    0, 0.5, self.network.N_ep
+                    )
                 input_t[input_t < 0] = 0
                 alpha_t = 1. 
                 fastlearn = False
@@ -95,17 +99,14 @@ class MultiCacheInput(Input):
 
     def _get_cache_inputs(self):
         t = self.t % self.cache_length
-        try:
-            cache_loc = self.cache_locs[self.cache_idx]
-        except:
-            import pdb; pdb.set_trace()
+        cache_loc = self.cache_locs[self.cache_idx]
         fastlearn = False
         input_t = np.zeros(self.network.num_units)
         if t < self.query_length: # Activate episode network and let settle
             if t < self.noise_length:
                 input_t[self.network.J_episode_indices] = np.random.normal(
-                    0, 1., self.network.N_ep
-                    ) 
+                    0, 1, self.network.N_ep
+                    ) + self.K_ep
             input_t[self.network.J_place_indices] += self._get_sharp_cos(cache_loc)
         elif self.query_length <= t < self.cache_length: # Fast learn
             fastlearn = True
@@ -130,7 +131,7 @@ class BehavioralInput(Input):
         self.target_seed = np.nan
         self.event_times = [12, 16, 18, 27]
         self.event_times = [1, 1.2, 1.35, 2]
-        self.event_times = [8, 9., 9.2, 12]
+        self.event_times = [8, 9., 9.5, 12]
         self.T_sec = self.event_times[-1]
         self.K_pl = K_pl
         self.K_ep = K_ep
@@ -147,15 +148,15 @@ class BehavioralInput(Input):
             loc_t = loc_t//(2*pi/16) * (2*pi/16)
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
-            input_t[input_t < 0] = 0
             input_t[self.network.J_episode_indices] += np.random.normal(
-                0, 0.5, self.network.N_ep
-                ) - 0.3
+                0, 1, self.network.N_ep
+                )
+            input_t[input_t < 0] = 0
             alpha_t = 1.
         elif self.to_seconds(t) < T3: # Query for seed
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_episode_indices] = np.random.normal(
-                0, 1, self.network.N_ep
+                0, 0.5, self.network.N_ep
                 ) + self.K_ep
             input_t[input_t < 0] = 0
             alpha_t = 1. if t < self.to_frames(T2) else 0

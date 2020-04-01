@@ -56,6 +56,7 @@ class OverlapNetwork(object):
     steps_in_s = (1/dt)*50
     kappa = 4.
     vonmises_gain = 3.2
+    norm_scale = 7
 
     def __init__(
             self, N_pl, N_ep, K_pl, K_ep,
@@ -77,7 +78,7 @@ class OverlapNetwork(object):
         self._init_shared_units()
         self._init_J()
         self._init_J_interactions()
-        self.J = normalize(self.J, axis=1, norm="l2")
+        self.J = normalize(self.J, axis=1, norm="l1")*self.norm_scale
         self.t = 0
 
     def step(self, prev_m, prev_f, input_t, alpha_t, fastlearn):
@@ -176,7 +177,7 @@ class OverlapNetwork(object):
                 weights = np.delete(weights, self.shared_unit_map[0])
                 J[J_idx, :weights.size] = weights
                 J_episode_indices[i] = int(J_idx)
-                J_episode_only = int(J_idx)
+                J_episode_only.append(int(J_idx))
                 J_idx += 1
 
         # Fill in unshared place network connectivity matrix
@@ -186,7 +187,7 @@ class OverlapNetwork(object):
             weights = np.delete(weights, self.shared_unit_map[1])
             J[J_idx, num_unshared_ep:num_unshared_ep + num_unshared_pl] = weights
             J_place_indices[i] = int(J_idx)
-            J_place_only = int(J_idx)
+            J_place_only.append(int(J_idx))
             J_idx += 1
 
         # Fill in shared units for episode and place
@@ -224,7 +225,7 @@ class OverlapNetwork(object):
 
             J_episode_indices[ep_unit] = int(J_idx)
             J_place_indices[pl_unit] = int(J_idx)
-            J_shared = int(J_idx)
+            J_shared.append(int(J_idx))
             J_idx += 1
 
         self.J_episode_indices = J_episode_indices

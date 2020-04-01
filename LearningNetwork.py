@@ -63,12 +63,13 @@ class LearningNetwork(object):
     norm_scale = 10
 
     def __init__(
-            self, N_pl, N_ep, K_inhib,
-            overlap=0, num_wta_modules=3, start_random=False
+            self, N_pl, N_ep, K_pl, K_ep,
+            overlap=0, num_wta_modules=3, start_random=False, start_wta=False
             ):
         self.N_pl = N_pl
         self.N_ep = N_ep
-        self.K_inhib = K_inhib
+        self.K_pl = K_pl
+        self.K_ep = K_ep
         self.overlap = overlap
         self.num_ep_modules = num_wta_modules
         self.num_pl_modules = num_wta_modules
@@ -78,7 +79,7 @@ class LearningNetwork(object):
         self.internetwork_units = np.array([[], []])
         self._init_wta_modules()
         self._init_shared_units()
-        self._init_J()
+        self._init_J(start_wta)
         self.steps_in_s = 10*50
         self.t = 0
 
@@ -116,7 +117,7 @@ class LearningNetwork(object):
                 alpha = 0
                 pl_only = False
         else:
-            alpha = 1e-2 if fastlearn else 1e-3
+            alpha = 1e-2 if fastlearn else 1e-4
             pl_only = False
         pre[np.abs(pre) < 1e-10] = 0
         post[np.abs(post) < 1e-10] = 0
@@ -155,7 +156,7 @@ class LearningNetwork(object):
         self.num_shared_units = num_shared_units
         self.num_units = self.N_ep + self.N_pl - num_shared_units
 
-    def _init_J(self):
+    def _init_J(self, start_wta):
         """ Initializes the connectivity matrix J """
 
         if self.start_random:
@@ -205,19 +206,28 @@ class LearningNetwork(object):
                 J_idx += 1
 
         # Fill in unshared place network connectivity matrix
-        wta_weight = 1.
-        wta_excit = wta_weight/(self.N_pl//self.num_pl_modules)
-        wta_inhib = -wta_weight/(self.N_pl - self.N_pl//self.num_pl_modules)
-        for m_i in range(self.num_pl_modules):
-            module = self.pl_modules[m_i]
-            for i in module:
+        if start_wta:
+            wta_weight = 1.
+            wta_excit = wta_weight/(self.N_pl//self.num_pl_modules)
+            wta_inhib = -wta_weight/(self.N_pl - self.N_pl//self.num_pl_modules)
+            for m_i in range(self.num_pl_modules):
+                module = self.pl_modules[m_i]
+                for i in module:
+                    if i in self.shared_unit_map[1]: continue
+                    weights = np.ones(self.N_pl)*wta_inhib
+                    weights[module] = wta_excit
+                    weights = np.delete(weights, self.shared_unit_map[1])
+                    J[J_idx,
+                        num_unshared_ep:num_unshared_ep + weights.size
+                        ] = weights
+                    J_place_indices[i] = int(J_idx)
+                    J_idx += 1
+        else:
+            for i in range(self.N_pl):
                 if i in self.shared_unit_map[1]: continue
-                weights = np.ones(self.N_pl)*wta_inhib
-                weights[module] = wta_excit
+                weights = self._get_vonmises(i)
                 weights = np.delete(weights, self.shared_unit_map[1])
-                J[J_idx,
-                    num_unshared_ep:num_unshared_ep + weights.size
-                    ] = weights
+                J[J_idx, num_unshared_ep:num_unshared_ep + num_unshared_pl] = weights
                 J_place_indices[i] = int(J_idx)
                 J_idx += 1
 
@@ -238,11 +248,14 @@ class LearningNetwork(object):
                 J[J_episode_indices[ep], J_idx] = wta_weights[ep]
 
             # Weights between shared unit and unshared place unit
-            pl_module_idx = np.argwhere(
-                [pl_unit in m for m in self.pl_modules]
-                )[0,0]
-            place_weights = np.ones(self.N_pl)*wta_inhib
-            place_weights[self.pl_modules[pl_module_idx]] = wta_excit
+            if start_wta:
+                pl_module_idx = np.argwhere(
+                    [pl_unit in m for m in self.pl_modules]
+                    )[0,0]
+                place_weights = np.ones(self.N_pl)*wta_inhib
+                place_weights[self.pl_modules[pl_module_idx]] = wta_excit
+            else:
+                place_weights = self._get_vonmises(pl_unit)
             for place in range(self.N_pl):
                 if place in self.shared_unit_map[1]: continue
                 J[J_idx, J_place_indices[place]] = place_weights[place]

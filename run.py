@@ -22,7 +22,8 @@ def run_and_plot_overlapnet(overlap=0.):
 
     N_pl = 100
     N_ep = 100 
-    K_pl=K_ep=0.2
+    K_pl = 0.1
+    K_ep = 0.1
     network = OverlapNetwork(
         N_pl=N_pl, N_ep=N_ep, K_pl=K_pl, K_ep=K_ep, overlap=overlap,
         add_feedback=True, num_internetwork_connections=3, num_ep_modules=7
@@ -47,7 +48,7 @@ def run_and_plot_learningring(overlap=0.):
     pm.plot_main(sim, f)
     pm.plot_J(sim)
 
-def run_and_plot_halfnet(overlap=0.):
+def run_and_plot_learningassociations(overlap=0.):
     """
     Runs and plots a place and episode network learning inter-network
     connections.
@@ -56,17 +57,18 @@ def run_and_plot_halfnet(overlap=0.):
     np.random.seed(0)
     N_pl = 100
     N_ep = 100
-    K_inhib = 0.18
+    K_pl = 0.1
+    K_ep = 0.2
     network = LearningNetwork(
-        N_pl=N_pl, N_ep=N_ep, K_inhib=K_inhib, overlap=overlap,
-        num_ep_modules=6, start_random=False
+        N_pl=N_pl, N_ep=N_ep, K_pl=K_pl, K_ep=K_ep, overlap=overlap,
+        num_wta_modules=6, start_random=False, start_wta=False
         )
-    inputgen = MultiCacheInput()
+    inputgen = MultiCacheInput(K_ep=K_inhib)
     sim = Simulator(network, inputgen)
+    pm.plot_J(sim)
     m, f = sim.simulate()
     pm.plot_main(sim, f)
     pm.plot_J(sim)
-    import pdb; pdb.set_trace()
 
 def run_and_plot_endtoend(overlap=0.):
     """ Runs and plots the end-to-end learning process """
@@ -98,7 +100,7 @@ def run_and_plot_endtoend(overlap=0.):
     import pdb; pdb.set_trace()
 
 def main():
-    for o in [0.6]:
+    for o in [0.4]:
         print("Overlap: %1.2f"%o)
         run_and_plot_overlapnet(o)
 
