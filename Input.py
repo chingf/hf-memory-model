@@ -41,7 +41,7 @@ class NavigationInput(Input):
 
     def get_inputs(self):
         if self.t < self.T:
-            period = 100
+            period = 150
             loc_t = ((self.t % period)/period)*(2*pi)
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
@@ -61,7 +61,7 @@ class MultiCacheInput(Input):
         self.t = 0
         self.noise_length = 30
         self.query_length = 33
-        self.fastlearn_length = 3
+        self.fastlearn_length = 5
         self.cache_length = self.query_length + self.fastlearn_length
         self.navigation_length = self.cache_length*10
         self.module_length = self.cache_length + self.navigation_length
@@ -105,7 +105,7 @@ class MultiCacheInput(Input):
         if t < self.query_length: # Activate episode network and let settle
             if t < self.noise_length:
                 input_t[self.network.J_episode_indices] = np.random.normal(
-                    0, 1, self.network.N_ep
+                    0, 0.5, self.network.N_ep
                     ) + self.K_ep
             input_t[self.network.J_place_indices] += self._get_sharp_cos(cache_loc)
         elif self.query_length <= t < self.cache_length: # Fast learn
@@ -149,7 +149,7 @@ class BehavioralInput(Input):
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
             input_t[self.network.J_episode_indices] += np.random.normal(
-                0, 1, self.network.N_ep
+                0, 0.5, self.network.N_ep
                 )
             input_t[input_t < 0] = 0
             alpha_t = 1.

@@ -12,17 +12,10 @@ warnings.filterwarnings("error")
 class IsolatedNetwork(LearningNetwork):
     """ Just one network """
 
-    base_J0 = 0.3
-    base_J2 = 5.
-    dt = 0.1
-    kappa = 4. 
-    vonmises_gain = 3.2
-    norm_scale = 5
-
     def __init__(self, N, K_inhib, mode, args=None):
         self.N = N
         self.K_inhib = K_inhib
-        self._set_variables(N, K_inhib)
+        self._set_variables(N)
         if mode == "wta":
             self.num_ep_modules = args
             self._init_wta()
@@ -34,7 +27,6 @@ class IsolatedNetwork(LearningNetwork):
             self._init_random()
         self.t = 0
         self.J = normalize(self.J, axis=1, norm="l1")*self.norm_scale
-
 
     def _init_wta(self):
         self.ep_modules = np.array_split(
@@ -50,6 +42,7 @@ class IsolatedNetwork(LearningNetwork):
                 weights = np.ones(self.N)*ep_inhib
                 weights[module] = ep_excit
                 J[i, :weights.size] = weights
+        np.fill_diagonal(J, 0)
         self.J = J
 
     def _init_ring(self):
@@ -57,12 +50,14 @@ class IsolatedNetwork(LearningNetwork):
         for i in range(self.N):
             weights = self._get_vonmises(i)
             J[i, :] = weights
+        np.fill_diagonal(J, 0)
         self.J = J
 
     def _init_random(self):
         self.J = np.random.normal(0, 0.1, (self.N, self.N))
+        np.fill_diagonal(self.J, 0)
 
-    def _set_variables(self, N, K_inhib):
+    def _set_variables(self, N):
         self.num_units = N; self.N_ep = N; self.N_pl = N
         self.J_episode_indices = np.arange(self.N)
         self.J_place_indices = np.arange(self.N)

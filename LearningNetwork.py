@@ -60,7 +60,7 @@ class LearningNetwork(object):
     dt = 0.1
     kappa = 4. 
     vonmises_gain = 3.2
-    norm_scale = 10
+    norm_scale = 4
 
     def __init__(
             self, N_pl, N_ep, K_pl, K_ep,
@@ -70,6 +70,7 @@ class LearningNetwork(object):
         self.N_ep = N_ep
         self.K_pl = K_pl
         self.K_ep = K_ep
+        self.K_inhib = K_pl
         self.overlap = overlap
         self.num_ep_modules = num_wta_modules
         self.num_pl_modules = num_wta_modules
@@ -103,7 +104,7 @@ class LearningNetwork(object):
         dmdt = -prev_m + total_input
         m_t = prev_m + self.dt*dmdt
         f_t = self._g(m_t)
-        self._update_synapses(f_t, f_t, fastlearn)
+        self._update_synapses(prev_f, f_t, fastlearn)
         return m_t, f_t
 
     def _update_synapses(self, pre, post, fastlearn):

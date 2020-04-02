@@ -41,8 +41,8 @@ def run_and_plot_learningring(overlap=0.):
 
     N = 100
     K_inhib = 0.2
-    network = IsolatedNetwork(N, K_inhib, "random")
-    inputgen = NavigationInput(T=10000)
+    network = IsolatedNetwork(N, K_inhib, "wta", 7)
+    inputgen = NavigationInput(T=20000)
     sim = Simulator(network, inputgen)
     m, f = sim.simulate()
     pm.plot_main(sim, f)
@@ -54,16 +54,14 @@ def run_and_plot_learningassociations(overlap=0.):
     connections.
     """
 
-    np.random.seed(0)
     N_pl = 100
     N_ep = 100
-    K_pl = 0.1
-    K_ep = 0.2
+    K_pl = K_ep = 0.3
     network = LearningNetwork(
         N_pl=N_pl, N_ep=N_ep, K_pl=K_pl, K_ep=K_ep, overlap=overlap,
-        num_wta_modules=6, start_random=False, start_wta=False
+        num_wta_modules=9, start_random=False, start_wta=False
         )
-    inputgen = MultiCacheInput(K_ep=K_inhib)
+    inputgen = MultiCacheInput(K_ep=K_ep)
     sim = Simulator(network, inputgen)
     pm.plot_J(sim)
     m, f = sim.simulate()
@@ -76,12 +74,12 @@ def run_and_plot_endtoend(overlap=0.):
     #np.random.seed(0)
     N_pl = 100
     N_ep = 100
-    K_inhib = 0.2
+    K_pl = K_ep = 0.5
     network = LearningNetwork(
-        N_pl=N_pl, N_ep=N_ep, K_inhib=K_inhib, overlap=overlap,
-        num_wta_modules=6, start_random=False
+        N_pl=N_pl, N_ep=N_ep, K_pl=K_pl, K_ep=K_ep, overlap=overlap,
+        num_wta_modules=6, start_random=False, start_wta=True
         )
-    inputgen = NavigationInput(T=30000)
+    inputgen = NavigationInput(T=20000)
     sim = Simulator(network, inputgen)
     pm.plot_J(sim)
     m, f = sim.simulate()
@@ -102,7 +100,7 @@ def run_and_plot_endtoend(overlap=0.):
 def main():
     for o in [0.4]:
         print("Overlap: %1.2f"%o)
-        run_and_plot_overlapnet(o)
+        run_and_plot_learningring(o)
 
 if __name__ == "__main__":
     main()
