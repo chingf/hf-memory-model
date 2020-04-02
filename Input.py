@@ -92,6 +92,7 @@ class MultiCacheInput(Input):
                 if (self.t + 1) % self.module_length == 0: self.caching = True
         else:
             raise StopIteration
+        alpha_t *= 1.5
         self.inputs[self.t,:] = input_t
         self.alphas[self.t] = alpha_t
         self.t += 1
@@ -160,9 +161,9 @@ class BehavioralInput(Input):
             input_t[self.network.J_episode_indices] = np.random.normal(
                 0, 0.5, self.network.N_ep
                 ) + self.K_ep
-            input_t[self.network.J_place_indices] += self._get_sharp_cos(
-                self.pre_seed_loc
-                )*nav_scale
+#            input_t[self.network.J_place_indices] += self._get_sharp_cos(
+#                self.pre_seed_loc
+#                )*nav_scale
             input_t[input_t < 0] = 0
             alpha_t = 1. if t < self.to_frames(T2) else 0
         elif self.to_seconds(t) < T4: # Navigation to seed
@@ -183,6 +184,7 @@ class BehavioralInput(Input):
             alpha_t = 0
         else:
             raise StopIteration
+        alpha_t *= 2
         self.inputs[self.t,:] = input_t
         self.alphas[self.t] = alpha_t
         self.t += 1

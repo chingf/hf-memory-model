@@ -39,10 +39,11 @@ def run_and_plot_learningring(overlap=0.):
     """ Runs and plots a random network learning the ring structure. """
 
     N = 100
-    K_inhib = 0.2
-    network = IsolatedNetwork(N, K_inhib, "wta", 7)
-    inputgen = NavigationInput(T=20000)
+    K_inhib = 0.3
+    network = IsolatedNetwork(N, K_inhib, "random")
+    inputgen = NavigationInput(T=13000)
     sim = Simulator(network, inputgen)
+    pm.plot_J(sim)
     m, f = sim.simulate()
     pm.plot_main(sim, f)
     pm.plot_J(sim)
@@ -73,23 +74,25 @@ def run_and_plot_endtoend(overlap=0.):
     #np.random.seed(0)
     N_pl = 100
     N_ep = 100
-    K_pl = K_ep = 0.5
+    K_pl = K_ep = 0.3
     network = LearningNetwork(
         N_pl=N_pl, N_ep=N_ep, K_pl=K_pl, K_ep=K_ep, overlap=overlap,
-        num_wta_modules=6, start_random=False, start_wta=True
+        num_wta_modules=7, start_random=False, start_wta=True
         )
-    inputgen = NavigationInput(T=20000)
+    inputgen = NavigationInput(T=8000)
     sim = Simulator(network, inputgen)
     pm.plot_J(sim)
     m, f = sim.simulate()
     pm.plot_main(sim, f)
     pm.plot_J(sim)
-    inputgen = MultiCacheInput()
+    inputgen = MultiCacheInput(K_ep=K_ep)
     sim = Simulator(network, inputgen)
     m, f = sim.simulate()
     pm.plot_main(sim, f)
     pm.plot_J(sim)
-    inputgen = BehavioralInput(pre_seed_loc=pi/2)
+    with open("learnednet.p", "wb") as p:
+        pickle.dump({"sim": sim, "network": network, "m": m, "f": f}, p)
+    inputgen = BehavioralInput(pre_seed_loc=pi, K_pl=K_pl, K_ep=K_ep)
     sim = Simulator(network, inputgen)
     m, f = sim.simulate()
     pm.plot_main(sim, f)
@@ -99,7 +102,7 @@ def run_and_plot_endtoend(overlap=0.):
 def main():
     for o in [0.4]:
         print("Overlap: %1.2f"%o)
-        run_and_plot_overlapnet(o)
+        run_and_plot_endtoend(o)
 
 if __name__ == "__main__":
     main()

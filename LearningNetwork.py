@@ -113,12 +113,12 @@ class LearningNetwork(object):
         if type(fastlearn) is int:
             if fastlearn == 1:
                 alpha = 1e-3
-                pl_only = False
+                pl_only = True
             elif fastlearn == 0:
                 alpha = 0
                 pl_only = False
         else:
-            alpha = 1e-2 if fastlearn else 1e-4
+            alpha = 4e-2 if fastlearn else 1e-4
             pl_only = False
         pre[np.abs(pre) < 1e-10] = 0
         post[np.abs(post) < 1e-10] = 0
