@@ -143,11 +143,12 @@ class BehavioralInput(Input):
     def get_inputs(self):
         T1, T2, T3, T4 = self.event_times
         t = self.t
+        nav_scale=0.7
         if self.to_seconds(t) < T1: # Free navigation to loc
             loc_t = ((t/(self.to_frames(T1))) * (2*pi + self.pre_seed_loc)) % (2*pi)
             loc_t = loc_t//(2*pi/16) * (2*pi/16)
             input_t = np.zeros(self.network.num_units)
-            input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
+            input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)*nav_scale
             input_t[self.network.J_episode_indices] += np.random.normal(
                 0, 0.5, self.network.N_ep
                 )
@@ -158,6 +159,9 @@ class BehavioralInput(Input):
             input_t[self.network.J_episode_indices] = np.random.normal(
                 0, 0.5, self.network.N_ep
                 ) + self.K_ep
+            input_t[self.network.J_place_indices] += self._get_sharp_cos(
+                self.pre_seed_loc
+                )*nav_scale
             input_t[input_t < 0] = 0
             alpha_t = 1. if t < self.to_frames(T2) else 0
         elif self.to_seconds(t) < T4: # Navigation to seed
@@ -168,7 +172,7 @@ class BehavioralInput(Input):
             nav_distance = self.target_seed - self.pre_seed_loc
             loc_t = ((t - nav_start)/nav_time)*nav_distance + self.pre_seed_loc
             input_t = np.zeros(self.network.num_units)
-            input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
+            input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)*nav_scale
             input_t[self.network.J_episode_indices] += np.random.normal(
                 0, 0.5, self.network.N_ep
                 )
