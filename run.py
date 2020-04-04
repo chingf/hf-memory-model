@@ -22,12 +22,13 @@ def run_and_plot_overlapnet(overlap=0.):
 
     N_pl = 100
     N_ep = 100 
-    K_pl = K_ep = 0.1
+    K_ep = 0.8
+    K_pl = 0.1
     network = OverlapNetwork(
         N_pl=N_pl, N_ep=N_ep, K_pl=K_pl, K_ep=K_ep, overlap=overlap,
         add_feedback=True, num_internetwork_connections=3, num_ep_modules=7
         )
-    inputgen = BehavioralInput(pre_seed_loc=pi/2, K_pl=K_pl, K_ep=K_ep)
+    inputgen = BehavioralInput(pre_seed_loc=7, K_pl=K_pl, K_ep=K_ep)
     sim = Simulator(network, inputgen)
     m, f = sim.simulate()
     pm.plot_main(sim, f)
@@ -92,7 +93,7 @@ def run_and_plot_endtoend(overlap=0.):
     pm.plot_J(sim)
     with open("learnednet.p", "wb") as p:
         pickle.dump({"sim": sim, "network": network, "m": m, "f": f}, p)
-    inputgen = BehavioralInput(pre_seed_loc=pi, K_pl=K_pl, K_ep=K_ep)
+    inputgen = BehavioralInput(pre_seed_loc=7, K_pl=K_pl, K_ep=K_ep)
     sim = Simulator(network, inputgen)
     m, f = sim.simulate()
     pm.plot_main(sim, f)
@@ -102,7 +103,7 @@ def run_and_plot_endtoend(overlap=0.):
 def main():
     for o in [0.4]:
         print("Overlap: %1.2f"%o)
-        run_and_plot_endtoend(o)
+        run_and_plot_overlapnet(o)
 
 if __name__ == "__main__":
     main()

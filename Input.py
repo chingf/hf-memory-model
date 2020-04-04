@@ -45,6 +45,9 @@ class NavigationInput(Input):
             loc_t = ((self.t % period)/period)*(2*pi)
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
+            input_t[self.network.J_episode_indices] += np.random.normal(
+                0, 0.5, self.network.N_ep
+                )
             alpha_t = 1.
             input_t[input_t < 0] = 0
             self.inputs[self.t,:] = input_t
@@ -92,7 +95,7 @@ class MultiCacheInput(Input):
                 if (self.t + 1) % self.module_length == 0: self.caching = True
         else:
             raise StopIteration
-        alpha_t *= 1.5
+        alpha_t *= 2.
         self.inputs[self.t,:] = input_t
         self.alphas[self.t] = alpha_t
         self.t += 1
@@ -126,92 +129,35 @@ class BehavioralInput(Input):
         - Move to seed location (4 sec)
     """
 
-    def __init__(self, pre_seed_loc=3*pi/2, K_pl=0, K_ep=0):
-        self.pre_seed_loc = pre_seed_loc 
+    def __init__(self, pre_seed_loc, K_pl, K_ep):
+        self.pre_seed_loc = pre_seed_loc  # In perch
         self.t = 0
-        self.target_seed = np.nan
-        self.event_times = [12, 16, 18, 27]
-        self.event_times = [1, 1.2, 1.35, 2]
-        self.event_times = [8, 9., 9.5, 12]
-        self.T_sec = self.event_times[-1]
         self.K_pl = K_pl
         self.K_ep = K_ep
-
-    def set_current_activity(self, f):
-        if self.t <= self.to_frames(self.event_times[1]) + 1:
-            self.f = f
+        self.query_noise_length = 1 # In sec
+        self.query_settle_length = 0.5 # In sec
+        self.velocity = 2 # Perches/sec
+        self.event_end_times = self._set_event_times()
+        self.T_sec = self.event_end_times[-1]
 
     def get_inputs(self):
-        T1, T2, T3, T4 = self.event_times
+        event_end_times = [self.to_frames(e) for e in self.event_end_times]
+        T1, T2, T3 = event_end_times
         t = self.t
-        nav_scale=0.7
-        nav_speed = (2*pi + self.pre_seed_loc)/self.to_frames(T1) 
-        if self.to_seconds(t) < T1: # Free navigation to loc
-            loc_t = (t*nav_speed) % (2*pi)
-            loc_t = loc_t//(2*pi/16) * (2*pi/16) # Convert to steps
-            input_t = np.zeros(self.network.num_units)
-            input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)*nav_scale
-            input_t[self.network.J_episode_indices] += np.random.normal(
-                0, 0.5, self.network.N_ep
-                )
-            input_t[input_t < 0] = 0
-            alpha_t = 1.
-        elif self.to_seconds(t) < T3: # Query for seed
-            input_t = np.zeros(self.network.num_units)
-            input_t[self.network.J_episode_indices] = np.random.normal(
-                0, 0.5, self.network.N_ep
-                ) + self.K_ep
-#            input_t[self.network.J_place_indices] += self._get_sharp_cos(
-#                self.pre_seed_loc
-#                )*nav_scale
-            input_t[input_t < 0] = 0
-            alpha_t = 1. if t < self.to_frames(T2) else 0
-        elif self.to_seconds(t) < T4: # Navigation to seed
-            if np.isnan(self.target_seed):
-                self.set_seed()
-            t -= self.to_frames(T3)
-            loc_t = (self.pre_seed_loc + t*nav_speed)%(2*pi)
-            loc_t = loc_t//(2*pi/16) * (2*pi/16) # Convert to steps
-            input_t = np.zeros(self.network.num_units)
-            input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)*nav_scale
-            input_t[self.network.J_episode_indices] += np.random.normal(
-                0, 0.5, self.network.N_ep
-                )
-            input_t[input_t < 0] = 0
-            alpha_t = 1.
-        elif t < self.T: # End input, but let network evolve
-            input_t = np.zeros(self.network.num_units)
-            alpha_t = 0
+        if t < T1:
+            input_t, alpha_t = self._get_navigation_input(t)
+        elif t < T2:
+            t -= T1
+            input_t, alpha_t = self._get_query_input(t)
+        elif t < T3:
+            t -= (T2 - T1)
+            input_t, alpha_t = self._get_navigation_input(t)
         else:
             raise StopIteration
-        alpha_t *= 2
         self.inputs[self.t,:] = input_t
         self.alphas[self.t] = alpha_t
         self.t += 1
         return input_t, alpha_t, 0
-
-    def to_seconds(self, frame):
-        return frame/self.network.steps_in_s
-
-    def to_frames(self, sec):
-        return sec*self.network.steps_in_s
-
-    def set_seed(self):
-        place_f = self.f[self.network.J_place_indices]
-        place_locs = np.linspace(0, 2*pi, self.network.N_pl, endpoint=False)
-        place_locs = place_locs[place_f > 0]
-        place_weights = place_f[place_f > 0]
-        if place_locs.size == 0:
-            target_loc = pi
-        else:
-            target_loc = np.average(place_locs, weights=place_weights)
-#        x = y = 0.
-#        for angle, weight in zip(place_locs, place_weights):
-#            x += cos(angle) * weight
-#            y += sin(angle) * weight
-#        target_loc = degrees(atan2(y, x))
-        print(target_loc/(2*pi))
-        self.target_seed = target_loc
 
     def set_network(self, network):
         self.network = network
@@ -219,4 +165,51 @@ class BehavioralInput(Input):
         self.T = int(self.to_frames(self.T_sec))
         self.inputs = np.zeros((self.T, network.num_units))
         self.alphas = np.zeros(self.T)
+
+    def to_seconds(self, frame):
+        return frame/self.network.steps_in_s
+
+    def to_frames(self, sec):
+        return int(sec*self.network.steps_in_s)
+
+    def _set_event_times(self):
+        query_length = self.query_noise_length + self.query_settle_length
+        nav1_end_time = (16 + self.pre_seed_loc)/self.velocity
+        query_end_time = nav1_end_time + query_length
+        nav2_end_time = query_end_time + 8/self.velocity
+        event_end_times = [nav1_end_time, query_end_time, nav2_end_time]
+        return event_end_times
+
+    def _get_navigation_input(self, t):
+        nav_scale = 1.
+        hop_length = self.to_frames(1./self.velocity)
+        loc_t = (self.to_seconds(t)*self.velocity) % (2*pi)
+        velocity_modulation = self._get_velocity_modulation(hop_length, t)
+        place_input = self._get_sharp_cos(loc_t)*velocity_modulation*nav_scale
+        input_t = np.zeros(self.network.num_units)
+        input_t[self.network.J_place_indices] = place_input 
+        input_t[self.network.J_episode_indices] += np.random.normal(
+            0, 0.5, self.network.N_ep
+            )
+        input_t[input_t < 0] = 0
+        alpha_t = 1.
+        return input_t, alpha_t
+
+    def _get_query_input(self, t):
+        input_t = np.zeros(self.network.num_units)
+        if t < self.to_frames(self.query_noise_length):
+            input_t[self.network.J_episode_indices] = np.random.normal(
+                0, 0.5, self.network.N_ep
+                ) + self.K_ep
+            input_t[input_t < 0] = 0
+        else:
+            input_t[self.network.J_episode_indices] = self.K_ep/2
+        alpha_t = 1.
+        return input_t, alpha_t
+
+    def _get_velocity_modulation(self,  hop_length, t):
+        scale = 6.
+        center = scale/2.
+        x = ((t % hop_length)/hop_length)*scale - center
+        return np.exp(-(x**2)/2)
 
