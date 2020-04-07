@@ -187,7 +187,8 @@ class BehavioralInput(Input):
         velocity_modulation = self._get_velocity_modulation(hop_length, t)
         place_input = self._get_sharp_cos(loc_t)*velocity_modulation*nav_scale
         input_t = np.zeros(self.network.num_units)
-        input_t[self.network.J_place_indices] = place_input 
+        input_t[self.network.J_place_indices] = place_input
+        input_t[input_t < 0] = 0
         input_t[self.network.J_episode_indices] += np.random.normal(
             0, 0.5, self.network.N_ep
             )

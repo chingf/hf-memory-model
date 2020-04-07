@@ -58,6 +58,7 @@ class LearningNetwork(object):
     base_J0 = 0.3
     base_J2 = 5.
     dt = 0.1
+    steps_in_s = (1/dt)*50
     kappa = 4. 
     vonmises_gain = 3.2
     norm_scale = 4

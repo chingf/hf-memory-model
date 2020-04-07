@@ -51,9 +51,9 @@ class OverlapNetwork(object):
 
     base_J0 = 0.3
     base_J2 = 5.
-    tau = 1#0.02 # time constant (in ms)
-    dt = 0.5#0.02
-    steps_in_s = (1/dt)*50
+    tau = 1 # time constant (in ms)
+    dt = 0.1 #
+    steps_in_s = (1/dt)*(1/tau)*50
     kappa = 4.
     vonmises_gain = 3.2
     norm_scale = 7
@@ -101,7 +101,10 @@ class OverlapNetwork(object):
         total_input[self.J_place_only] -= self.K_pl
         total_input[self.J_episode_only] -= self.K_ep
         total_input[self.J_shared] -= (self.K_pl + self.K_ep)/2
-        dmdt = (-prev_m + total_input)/self.tau
+        try:
+            dmdt = (-prev_m + total_input)/self.tau
+        except:
+            import pdb; pdb.set_trace()
         m_t = prev_m + self.dt*dmdt
         f_t = self._g(m_t)
         return m_t, f_t
