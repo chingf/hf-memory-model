@@ -64,7 +64,7 @@ class MultiCacheInput(Input):
         self.t = 0
         self.noise_length = 30
         self.query_length = 33
-        self.fastlearn_length = 5
+        self.fastlearn_length = 4
         self.cache_length = self.query_length + self.fastlearn_length
         self.navigation_length = self.cache_length*10
         self.module_length = self.cache_length + self.navigation_length
@@ -134,8 +134,8 @@ class BehavioralInput(Input):
         self.t = 0
         self.K_pl = K_pl
         self.K_ep = K_ep
-        self.query_noise_length = 1 # In sec
-        self.query_settle_length = 0.5 # In sec
+        self.query_noise_length = 1.5 # In sec
+        self.query_settle_length = 0. # In sec
         self.velocity = 2 # Perches/sec
         self.event_end_times = self._set_event_times()
         self.T_sec = self.event_end_times[-1]
@@ -146,6 +146,10 @@ class BehavioralInput(Input):
         t = self.t
         if t < T1:
             input_t, alpha_t = self._get_navigation_input(t)
+#            if T1 - t < 150:
+#                input_t[self.network.J_episode_indices] += np.random.normal(
+#                    0, 0.5, self.network.N_ep
+#                    ) + self.network.K_ep
         elif t < T2:
             t -= T1
             input_t, alpha_t = self._get_query_input(t)
@@ -183,7 +187,7 @@ class BehavioralInput(Input):
     def _get_navigation_input(self, t):
         nav_scale = 1.
         hop_length = self.to_frames(1./self.velocity)
-        loc_t = (self.to_seconds(t)*self.velocity) % (2*pi)
+        loc_t = 2*pi*((self.to_seconds(t)*self.velocity) % (16))/16
         velocity_modulation = self._get_velocity_modulation(hop_length, t)
         place_input = self._get_sharp_cos(loc_t)*velocity_modulation*nav_scale
         input_t = np.zeros(self.network.num_units)
@@ -204,7 +208,7 @@ class BehavioralInput(Input):
                 ) + self.K_ep
             input_t[input_t < 0] = 0
         else:
-            input_t[self.network.J_episode_indices] = self.K_ep/2
+            input_t[self.network.J_episode_indices] = self.K_ep
         alpha_t = 1.
         return input_t, alpha_t
 

@@ -62,6 +62,7 @@ class LearningNetwork(object):
     kappa = 4. 
     vonmises_gain = 3.2
     norm_scale = 4
+    isolated = False
 
     def __init__(
             self, N_pl, N_ep, K_pl, K_ep,
@@ -109,8 +110,9 @@ class LearningNetwork(object):
         return m_t, f_t
 
     def _update_synapses(self, pre, post, fastlearn):
-        pre = pre - self.K_inhib
-        post = post - self.K_inhib
+        threshold = 0.3
+        pre = pre - threshold
+        post = post - threshold 
         if type(fastlearn) is int:
             if fastlearn == 1:
                 alpha = 1e-3
@@ -129,7 +131,7 @@ class LearningNetwork(object):
             )
         delta[inhibitory_idxs] = 0
         np.fill_diagonal(delta, 0)
-        if pl_only:
+        if pl_only and not self.isolated:
             delta[self.J_episode_indices_unshared, :] = 0
             delta[:, self.J_episode_indices_unshared] = 0
         self.J += delta

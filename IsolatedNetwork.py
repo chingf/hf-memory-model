@@ -11,6 +11,7 @@ warnings.filterwarnings("error")
 
 class IsolatedNetwork(LearningNetwork):
     """ Just one network """
+    isolated = True
 
     def __init__(self, N, K_inhib, mode, args=None):
         self.N = N
