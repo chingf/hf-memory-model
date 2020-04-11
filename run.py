@@ -13,9 +13,30 @@ from LearningNetwork import LearningNetwork
 from IsolatedNetwork import IsolatedNetwork
 from Simulator import Simulator
 from Input import BehavioralInput, NavigationInput
-from Input import MultiCacheInput
+from Input import MultiCacheInput, PresentationInput
 
 pm = PlotMaker()
+
+def run_and_plot_presentation(overlap=0.):
+    """ Runs and plots the hand-tuned network. """
+
+    N_pl = 100
+    N_ep = 104
+    K_ep = 0.8
+    K_pl = 0.
+    network = OverlapNetwork(
+        N_pl=N_pl, N_ep=N_ep, K_pl=K_pl, K_ep=K_ep, overlap=overlap,
+        add_feedback=True, num_internetwork_connections=2, num_ep_modules=8
+        )
+    inputgen = PresentationInput(
+        pre_seed_locs=[pi/2, 3*pi/2], K_pl=K_pl, K_ep=K_ep
+        )
+    sim = Simulator(network, inputgen)
+    m, f = sim.simulate()
+    pm.plot_main(sim, f)
+    pm.plot_J(sim)
+    with open("presentationnet.p", "wb") as p:
+        pickle.dump({"sim": sim, "m": m, "f": f}, p)
 
 def run_and_plot_overlapnet(overlap=0.):
     """ Runs and plots the hand-tuned network. """
@@ -121,10 +142,8 @@ def test_net(p):
     pm.plot_J(sim)
 
 def main():
-    test_net("overlapnet.p")
-    return
-    for o in [0.4]:
+    for o in [0.]:
         print("Overlap: %1.2f"%o)
-        run_and_plot_overlapnet(o)
+        run_and_plot_presentation(o)
 
 main()

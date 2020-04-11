@@ -218,3 +218,98 @@ class BehavioralInput(Input):
         x = ((t % hop_length)/hop_length)*scale - center
         return np.exp(-(x**2)/2)
 
+class PresentationInput(Input):
+    """
+    Creates input that is chickadee-like. Specifically:
+        - Movement from 0 around the whole ring then to loc (10 sec)
+        - 2s query for a seed
+        - Move to seed location (4 sec)
+    """
+
+    def __init__(self, pre_seed_locs, K_pl, K_ep):
+        self.pre_seed_locs = pre_seed_locs # In radians
+        self.t = 0
+        self.K_pl = K_pl
+        self.K_ep = K_ep
+        self.query_length = 1.5 # In sec
+        self.velocity = 2*pi/8 # rad/sec
+        self.event_end_times = self._set_event_times()
+        self.T_sec = self.event_end_times[-1]
+
+    def get_inputs(self):
+        event_end_times = [self.to_frames(e) for e in self.event_end_times]
+        T1, T2, T3, T4, T5 = event_end_times
+        t = self.t
+        if t < T1:
+            input_t, alpha_t = self._get_navigation_input(t)
+        elif t < T2:
+            t -= T1
+            input_t, alpha_t = self._get_query_input(t)
+        elif t < T3:
+            t -= (T2 - T1)
+            input_t, alpha_t = self._get_navigation_input(t)
+        elif t < T4:
+            t -= T3
+            input_t, alpha_t = self._get_query_input(t)
+        elif t < T5:
+            t -= (T2 - T1)
+            t -= (T4 - T3)
+            input_t, alpha_t = self._get_navigation_input(t)
+        else:
+            raise StopIteration
+        self.inputs[self.t,:] = input_t
+        self.alphas[self.t] = alpha_t
+        self.t += 1
+        return input_t, alpha_t, 0
+
+    def set_network(self, network):
+        self.network = network
+        self.f = np.zeros(network.num_units)
+        self.T = int(self.to_frames(self.T_sec))
+        self.inputs = np.zeros((self.T, network.num_units))
+        self.alphas = np.zeros(self.T)
+
+    def to_seconds(self, frame):
+        return frame/self.network.steps_in_s
+
+    def to_frames(self, sec):
+        return int(sec*self.network.steps_in_s)
+
+    def _set_event_times(self):
+        seed1, seed2 = self.pre_seed_locs
+        nav1_dist = 2*2*pi + seed1
+        nav1_end_time = nav1_dist/self.velocity
+        query1_end_time = nav1_end_time + self.query_length
+        nav2_dist = (2*pi - seed1) + seed2
+        nav2_end_time = query1_end_time + nav2_dist/self.velocity
+        query2_end_time = nav2_end_time + self.query_length
+        nav3_dist = 2*pi
+        nav3_end_time = query2_end_time + nav3_dist/self.velocity
+        event_end_times = [
+            nav1_end_time, query1_end_time, nav2_end_time,
+            query2_end_time, nav3_end_time
+            ]
+        return event_end_times
+
+    def _get_navigation_input(self, t):
+        nav_scale = 1.
+        loc_t = (self.to_seconds(t)*self.velocity) % (2*pi)
+        place_input = self._get_sharp_cos(loc_t)*nav_scale
+        input_t = np.zeros(self.network.num_units)
+        input_t[self.network.J_place_indices] = place_input
+        input_t[input_t < 0] = 0
+        input_t[self.network.J_episode_indices] += np.random.normal(
+            0, 0.5, self.network.N_ep
+            )
+        input_t[input_t < 0] = 0
+        alpha_t = 1.
+        return input_t, alpha_t
+
+    def _get_query_input(self, t):
+        input_t = np.zeros(self.network.num_units)
+        input_t[self.network.J_episode_indices] = np.random.normal(
+            0, 0.5, self.network.N_ep
+            ) + self.K_ep
+        input_t[input_t < 0] = 0
+        alpha_t = 1.
+        return input_t, alpha_t

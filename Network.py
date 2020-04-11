@@ -50,13 +50,13 @@ class OverlapNetwork(object):
     """
 
     base_J0 = 0.3
-    base_J2 = 5.
+    base_J2 = 5.5
     tau = 1 # time constant (in ms)
     dt = 0.1 #
     steps_in_s = (1/dt)*(1/tau)*50
     kappa = 4.
     vonmises_gain = 3.2
-    norm_scale = 7
+    norm_scale = 3.
 
     def __init__(
             self, N_pl, N_ep, K_pl, K_ep,
@@ -100,7 +100,8 @@ class OverlapNetwork(object):
         total_input = self.J @ self._g(prev_m) + h_ext
         total_input[self.J_place_only] -= self.K_pl
         total_input[self.J_episode_only] -= self.K_ep
-        total_input[self.J_shared] -= (self.K_pl + self.K_ep)/2
+        if self.overlap != 0:
+            total_input[self.J_shared] -= (self.K_pl + self.K_ep)/2
         try:
             dmdt = (-prev_m + total_input)/self.tau
         except:
@@ -118,26 +119,19 @@ class OverlapNetwork(object):
         """ Determines which units connect between the two networks """
 
         if self.num_internetwork_connections == 0:
-            self.internetwork_units = np.array([[], []])
+            ep_modules, place_units = []
+        elif self.num_internetwork_connections == 1:
+            ep_modules = [self.num_ep_modules//2]
+            pl_units = [self.N_pl//2]
         else:
-            center_ep_units = np.linspace(
-                0, self.N_ep, self.num_internetwork_connections, endpoint=False
+            ep_modules = np.linspace(
+                0, self.num_ep_modules, self.num_internetwork_connections,
+                endpoint=False
                 )
-            center_pl_units = np.linspace(
+            pl_units = np.linspace(
                 0, self.N_pl, self.num_internetwork_connections, endpoint=False
                 )
-            if self.num_internetwork_connections == 1:
-                center_ep_units = np.array([self.N_ep/2])
-                center_pl_units = np.array([self.N_pl/2])
-            episode_units = []
-            place_units = []
-            for c in center_ep_units:
-                neighbors = [int(c + i)%self.N_ep for i in np.arange(-2, 3)]
-                episode_units.extend(neighbors)
-            for c in center_pl_units:
-                neighbors = [int(c + i)%self.N_pl for i in np.arange(-2, 3)]
-                place_units.extend(neighbors)
-            self.internetwork_units = np.array([episode_units, place_units])
+        self.internetwork_units = np.array([ep_modules, pl_units])
 
     def _init_shared_units(self):
         """ Determines which units are shared between the two networks """
@@ -168,7 +162,7 @@ class OverlapNetwork(object):
         J_idx = 0
 
         # Fill in unshared episode network connectivity matrix
-        ep_weight = 0.8
+        ep_weight = 0.5
         ep_excit = ep_weight/(self.N_ep//self.num_ep_modules)
         ep_inhib = -ep_weight/(self.N_ep - self.N_ep//self.num_ep_modules)
         for m_i in range(self.num_ep_modules):
@@ -241,27 +235,26 @@ class OverlapNetwork(object):
     def _init_J_interactions(self):
         """ Adds the interactions between networks to J matrix """
 
-        episode_units = self.internetwork_units[0]
-        place_units = self.internetwork_units[1]
-        interaction_support = np.arange(-self.N_pl//2, self.N_pl//2 + 1)
+        ep_modules, pl_units = self.internetwork_units
         scale = 1.
-        for idx, episode_unit in enumerate(episode_units):
-            episode_unit = self.J_episode_indices[episode_unit]
-            for i in interaction_support:
-                weight_offset = self._get_vonmises_weight(i, 0)
-                weight_offset *= scale
-                place_unit = self.J_place_indices[(place_units[idx]+i)%self.N_pl]
-                self.J[place_unit, episode_unit] = weight_offset
-        if self.add_feedback:
-            for idx, place_unit in enumerate(place_units):
-                place_unit = self.J_place_indices[place_unit]
-                for i in interaction_support:
-                    weight_offset = self._get_vonmises_weight(i, 0)
-                    weight_offset *= scale
-                    episode_unit = self.J_episode_indices[
-                        (episode_units[idx]+i)%self.N_ep
-                        ]
-                    self.J[episode_unit, place_unit] = weight_offset
+        for cache in range(ep_modules.size):
+            ep_module = int(ep_modules[cache])
+            ep_units = self.ep_modules[ep_module]
+            pl_unit = int(pl_units[cache])
+            pl_support = 4
+            pl_support = np.arange(pl_unit - pl_support, pl_unit + pl_support + 1)
+            pl_ep_weight = 0.03
+            ep_pl_weight = 0.1
+            pl_ep_weights = np.ones(self.N_ep)*-pl_ep_weight
+            pl_ep_weights[ep_units] *= -1
+            ep_pl_weights = np.ones(self.N_pl)*-ep_pl_weight
+            ep_pl_weights[pl_support] *= -1
+            for pl in pl_support:
+                J_pl = self.J_place_indices[pl]
+                self.J[self.J_episode_indices, J_pl] = pl_ep_weights
+            for ep in ep_units:
+                J_ep = self.J_episode_indices[ep]
+                self.J[self.J_place_indices, J_ep] = ep_pl_weights
         for i in range(self.J.shape[0]):
             self.J[i,i] = 0
 
