@@ -56,12 +56,12 @@ class LearningNetwork(object):
     """
 
     base_J0 = 0.3
-    base_J2 = 5.
+    base_J2 = 5
     dt = 0.1
     steps_in_s = (1/dt)*50
     kappa = 4. 
     vonmises_gain = 3.2
-    norm_scale = 4
+    norm_scale = 3.
     isolated = False
 
     def __init__(
@@ -102,27 +102,36 @@ class LearningNetwork(object):
         """
 
         h_ext = alpha_t*input_t
-        total_input = self.J @ self._g(prev_m) + h_ext - self.K_inhib
-        dmdt = -prev_m + total_input
-        m_t = prev_m + self.dt*dmdt
+        total_input = self.J @ self._g(prev_m[:, -1]) + h_ext - self.K_inhib
+        dmdt = -prev_m[:, -1] + total_input
+        m_t = prev_m[:, -1] + self.dt*dmdt
         f_t = self._g(m_t)
         self._update_synapses(prev_f, f_t, fastlearn)
         return m_t, f_t
 
-    def _update_synapses(self, pre, post, fastlearn):
-        threshold = 0.3
-        pre = pre - threshold
-        post = post - threshold 
+    def _update_synapses(self, prev_f, f_t, fastlearn):
         if type(fastlearn) is int:
             if fastlearn == 1:
-                alpha = 1e-3
-                pl_only = True
+                alpha = 3e-4
+                pl_only = False#True
             elif fastlearn == 0:
                 alpha = 0
                 pl_only = False
         else:
             alpha = 4e-2 if fastlearn else 1e-4
             pl_only = False
+        elapsed_t = prev_f.shape[1]
+        window_size = 1000
+        if elapsed_t > window_size:
+            activity_window = np.sum(prev_f[:, -window_size:], axis=1)
+        else:
+            activity_window = np.sum(prev_f, axis=1)
+        inactive_units = np.argwhere(activity_window < 3)
+        pre = prev_f[:, -1]
+        post = f_t
+        threshold = 0.3#self.K_pl
+        pre = pre - threshold
+        post = post - threshold 
         pre[np.abs(pre) < 1e-10] = 0
         post[np.abs(post) < 1e-10] = 0
         delta = alpha * np.outer(post, pre)
@@ -130,12 +139,15 @@ class LearningNetwork(object):
             np.argwhere(post < 0).squeeze(), np.argwhere(pre < 0).squeeze()
             )
         delta[inhibitory_idxs] = 0
+        delta[inactive_units, :] = 0
+        delta[:, inactive_units] = 0
         np.fill_diagonal(delta, 0)
         if pl_only and not self.isolated:
             delta[self.J_episode_indices_unshared, :] = 0
             delta[:, self.J_episode_indices_unshared] = 0
         self.J += delta
         self.J = normalize(self.J, axis=1, norm="l1")*self.norm_scale
+        #self.J = np.clip(self.J, -1e-2, 1e-1)
 
     def _init_wta_modules(self):
         self.ep_modules = np.array_split(

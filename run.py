@@ -101,15 +101,15 @@ def run_and_plot_endtoend(overlap=0.):
     """ Runs and plots the end-to-end learning process """
 
     #np.random.seed(0)
-    N_pl = 100
-    N_ep = 100
-    K_pl = 0.3
-    K_ep = 0.3
+    N_pl = 104
+    N_ep = 104
+    K_pl = 0.6
+    K_ep = 0.6
     network = LearningNetwork(
         N_pl=N_pl, N_ep=N_ep, K_pl=K_pl, K_ep=K_ep, overlap=overlap,
-        num_wta_modules=10, start_random=False, start_wta=True
+        num_wta_modules=8, start_random=False, start_wta=True
         )
-    inputgen = NavigationInput(T=8000)
+    inputgen = NavigationInput(T=15000)
     sim = Simulator(network, inputgen)
     pm.plot_J(sim)
     m, f = sim.simulate()
@@ -122,7 +122,9 @@ def run_and_plot_endtoend(overlap=0.):
     pm.plot_J(sim)
     with open("learnednet.p", "wb") as p:
         pickle.dump({"sim": sim, "m": m, "f": f}, p)
-    inputgen = BehavioralInput(pre_seed_loc=7, K_pl=K_pl, K_ep=K_ep)
+    inputgen = PresentationInput(
+        pre_seed_locs=[pi/2, 3*pi/2], K_pl=K_pl, K_ep=K_ep
+        )
     sim = Simulator(network, inputgen)
     m, f = sim.simulate()
     pm.plot_main(sim, f)
@@ -142,8 +144,8 @@ def test_net(p):
     pm.plot_J(sim)
 
 def main():
-    for o in [0.]:
+    for o in [0.3]:
         print("Overlap: %1.2f"%o)
-        run_and_plot_presentation(o)
+        run_and_plot_endtoend(o)
 
 main()
