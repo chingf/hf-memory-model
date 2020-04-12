@@ -19,6 +19,8 @@ class Simulator(object):
         self.network = network
         self.inputgen = inputgen
         self.inputgen.set_network(network)
+        self.J_samplerate = self.inputgen.J_samplerate
+        self.J_samples = []
 
     def simulate(self):
         """
@@ -43,13 +45,14 @@ class Simulator(object):
                 input_t, alpha_t, fastlearn = self.inputgen.get_inputs()
             except StopIteration:
                 break
-
             if t == 0:
                 m_t, f_t = self.network.step(m0, f0, input_t, alpha_t, fastlearn)
             else:
                 m_t, f_t = self.network.step(
                     m[:, :t], f[:, :t], input_t, alpha_t, fastlearn
                     )
+            if self.J_samplerate > 0 and t % self.J_samplerate == 0:
+                self.J_samples.append(self.network.J)
             m[:,t] = m_t
             f[:,t] = f_t
             self.inputgen.set_current_activity(f_t)

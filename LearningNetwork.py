@@ -110,15 +110,13 @@ class LearningNetwork(object):
         return m_t, f_t
 
     def _update_synapses(self, prev_f, f_t, fastlearn):
-        if type(fastlearn) is int:
-            if fastlearn == 1:
-                alpha = 3e-4
-                pl_only = False#True
-            elif fastlearn == 0:
-                alpha = 0
-                pl_only = False
+        slow_alpha = 3e-4
+        fast_alpha = 4e-2
+        if fastlearn == 0:
+            alpha = 0
+            pl_only = False
         else:
-            alpha = 4e-2 if fastlearn else 1e-4
+            alpha = fast_alpha if fastlearn else slow_alpha
             pl_only = False
         elapsed_t = prev_f.shape[1]
         window_size = 1000

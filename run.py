@@ -13,7 +13,7 @@ from LearningNetwork import LearningNetwork
 from IsolatedNetwork import IsolatedNetwork
 from Simulator import Simulator
 from Input import BehavioralInput, NavigationInput
-from Input import MultiCacheInput, PresentationInput
+from Input import OneCacheInput, MultiCacheInput, PresentationInput
 
 pm = PlotMaker()
 
@@ -109,26 +109,31 @@ def run_and_plot_endtoend(overlap=0.):
         N_pl=N_pl, N_ep=N_ep, K_pl=K_pl, K_ep=K_ep, overlap=overlap,
         num_wta_modules=8, start_random=False, start_wta=True
         )
+
     inputgen = NavigationInput(T=15000)
-    sim = Simulator(network, inputgen)
-    pm.plot_J(sim)
-    m, f = sim.simulate()
-    pm.plot_main(sim, f)
-    pm.plot_J(sim)
-    inputgen = MultiCacheInput(K_ep=K_ep)
-    sim = Simulator(network, inputgen)
-    m, f = sim.simulate()
-    pm.plot_main(sim, f)
-    pm.plot_J(sim)
-    with open("learnednet.p", "wb") as p:
-        pickle.dump({"sim": sim, "m": m, "f": f}, p)
+    sim1 = Simulator(network, inputgen)
+    pm.plot_J(sim1)
+    m, f = sim1.simulate()
+    pm.plot_main(sim1, f)
+    pm.plot_J(sim1)
+
+    inputgen = OneCacheInput(K_ep=K_ep)
+    sim2 = Simulator(network, inputgen)
+    m, f = sim2.simulate()
+    pm.plot_main(sim2, f)
+    pm.plot_J(sim2)
+
     inputgen = PresentationInput(
         pre_seed_locs=[pi/2, 3*pi/2], K_pl=K_pl, K_ep=K_ep
         )
-    sim = Simulator(network, inputgen)
-    m, f = sim.simulate()
-    pm.plot_main(sim, f)
-    pm.plot_J(sim)
+    sim3 = Simulator(network, inputgen)
+    m, f = sim3.simulate()
+    pm.plot_main(sim3, f)
+    pm.plot_J(sim3)
+    with open("learnednet.p", "wb") as p:
+        pickle.dump({
+            "sim1": sim1, "sim2": sim2, "sim3": sim3, "m": m, "f": f
+            }, p)
     import pdb; pdb.set_trace()
 
 def test_net(p):

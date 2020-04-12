@@ -6,6 +6,8 @@ class Input(object):
     An object that generates inputs to feed into a Network object.
     """
 
+    J_samplerate = -1
+
     def __init__(self):
         pass
 
@@ -35,6 +37,8 @@ class Input(object):
 class NavigationInput(Input):
     """ Feeds in navigation input to the place network. """
 
+    J_samplerate = 100
+
     def __init__(self, T=1800):
         self.T = T
         self.t = 0
@@ -57,6 +61,67 @@ class NavigationInput(Input):
         else:
             raise StopIteration
 
+class OneCacheInput(Input):
+    """ Feeds in random noise into episode network and navigation input. """
+
+    J_samplerate = 1
+
+    def __init__(self, K_ep):
+        self.t = 0
+        self.cache_length = 33
+        self.fastlearn_length = 4
+        self.nav_speed = 1/2000. # revolution/timesteps
+        self.cache_loc = pi/2
+        self.prev_loc = 0
+        self.caching = False
+        self.K_ep = K_ep
+        self.T = 1/self.nav_speed + self.cache_length
+        self.cache_start = (1/self.nav_speed)*self.cache_loc/(2*pi)
+        self.ep_noise_std = 0.3
+
+    def get_inputs(self):
+        if self.t < self.T:
+            if self.caching:
+                input_t, alpha_t, fastlearn = self._get_cache_inputs()
+            else: # Navigating
+                if t == self.cache_start:
+                    self.caching = True
+                elif t > self.cache_start:
+                    t -= self.cache_length
+                loc_t = (t*self.nav_speed) * 2*pi
+                input_t = np.zeros(self.network.num_units)
+                input_t[self.network.J_place_indices] += self._get_sharp_cos(loc_t)
+                input_t[self.network.J_episode_indices] += np.random.normal(
+                    0, self.ep_noise_std, self.network.N_ep
+                    )
+                input_t[input_t < 0] = 0
+                alpha_t = 1. 
+                fastlearn = False
+        else:
+            raise StopIteration
+        self.inputs[self.t,:] = input_t
+        self.alphas[self.t] = alpha_t
+        self.t += 1
+        return input_t, alpha_t, fastlearn
+
+    def _get_cache_inputs(self):
+        t = (self.t - self.cache_start) % self.cache_length
+        cache_loc = self.cache_locs[self.cache_idx]
+        fastlearn = False
+        input_t = np.zeros(self.network.num_units)
+        input_t[self.network.J_episode_indices] = np.random.normal(
+            0, self.ep_noise_std, self.network.N_ep
+            ) + 0.4#self.K_ep
+        input_t[self.network.J_place_indices] += self._get_sharp_cos(cache_loc)
+        if t > self.cache_length - self.fastlearn_length: # Fast learn
+            fastlearn = True
+        input_t[input_t < 0] = 0
+        alpha_t = 1.
+        if t == self.cache_length - 1:
+            self.caching = False
+            self.cache_idx += 1
+        return input_t, alpha_t, fastlearn
+
 class MultiCacheInput(Input):
     """ Feeds in random noise into episode network and navigation input. """
 
@@ -64,14 +129,13 @@ class MultiCacheInput(Input):
         self.t = 0
         self.cache_length = 33
         self.fastlearn_length = 4
-        self.navigation_length = self.cache_length*10
+        self.navigation_length = self.cache_length*20
         self.module_length = self.cache_length + self.navigation_length
         self.cache_locs = [0, 2*pi/3, 4*pi/3]
         self.cache_idx = 0
         self.caching = True
         self.K_ep = K_ep
         self.T = self.module_length*2 + self.cache_length
-        self.T = self.module_length
         self.ep_noise_std = 0.3
 
     def get_inputs(self):
