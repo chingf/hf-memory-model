@@ -103,14 +103,13 @@ def run_and_plot_endtoend(overlap=0.):
     #np.random.seed(0)
     N_pl = 104
     N_ep = 104
-    K_pl = 0.6
-    K_ep = 0.6
+    K_pl = K_ep = 0.6
     network = LearningNetwork(
         N_pl=N_pl, N_ep=N_ep, K_pl=K_pl, K_ep=K_ep, overlap=overlap,
         num_wta_modules=8, start_random=False, start_wta=True
         )
 
-    inputgen = NavigationInput(T=15000)
+    inputgen = NavigationInput(T=14000)
     sim1 = Simulator(network, inputgen)
     pm.plot_J(sim1)
     m, f = sim1.simulate()

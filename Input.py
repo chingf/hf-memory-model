@@ -69,18 +69,20 @@ class OneCacheInput(Input):
     def __init__(self, K_ep):
         self.t = 0
         self.cache_length = 33
-        self.fastlearn_length = 4
+        self.fastlearn_length = 5
         self.nav_speed = 1/2000. # revolution/timesteps
         self.cache_loc = pi/2
         self.prev_loc = 0
         self.caching = False
         self.K_ep = K_ep
-        self.T = 1/self.nav_speed + self.cache_length
-        self.cache_start = (1/self.nav_speed)*self.cache_loc/(2*pi)
+        self.cache_start = int((1/self.nav_speed)*self.cache_loc/(2*pi))
+        self.cache_start += int(1/self.nav_speed)
+        self.T = int(2/self.nav_speed + self.cache_length)
         self.ep_noise_std = 0.3
 
     def get_inputs(self):
-        if self.t < self.T:
+        t = self.t
+        if t < self.T:
             if self.caching:
                 input_t, alpha_t, fastlearn = self._get_cache_inputs()
             else: # Navigating
@@ -106,20 +108,18 @@ class OneCacheInput(Input):
 
     def _get_cache_inputs(self):
         t = (self.t - self.cache_start) % self.cache_length
-        cache_loc = self.cache_locs[self.cache_idx]
         fastlearn = False
         input_t = np.zeros(self.network.num_units)
         input_t[self.network.J_episode_indices] = np.random.normal(
             0, self.ep_noise_std, self.network.N_ep
-            ) + 0.4#self.K_ep
-        input_t[self.network.J_place_indices] += self._get_sharp_cos(cache_loc)
+            ) + self.K_ep + 0.3
+        input_t[self.network.J_place_indices] += self._get_sharp_cos(self.cache_loc)
         if t > self.cache_length - self.fastlearn_length: # Fast learn
             fastlearn = True
         input_t[input_t < 0] = 0
-        alpha_t = 1.
         if t == self.cache_length - 1:
             self.caching = False
-            self.cache_idx += 1
+        alpha_t = 1
         return input_t, alpha_t, fastlearn
 
 class MultiCacheInput(Input):
@@ -371,7 +371,7 @@ class PresentationInput(Input):
         input_t = np.zeros(self.network.num_units)
         input_t[self.network.J_episode_indices] = np.random.normal(
             0, 0.1, self.network.N_ep
-            ) + self.K_ep
+            ) + self.K_ep + 0.3
         input_t[input_t < 0] = 0
         alpha_t = 1.
         return input_t, alpha_t
