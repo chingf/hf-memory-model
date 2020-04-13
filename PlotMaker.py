@@ -61,6 +61,31 @@ class PlotMaker(object):
         plt.imshow(full_J, cmap=plt.cm.coolwarm, norm=norm)
         plt.show()
 
+    def plot_network_J_copy(self, network, J):
+        """
+        Plots the J of the network with indices arranged by order on ring
+        """
+
+        N_ep = network.N_ep
+        N_pl = network.N_pl
+        full_J = np.zeros((N_ep + N_pl, N_ep + N_pl))*np.nan
+        for idx_i, i in enumerate(network.J_episode_indices):
+            for idx_j, j in enumerate(network.J_episode_indices):
+                full_J[idx_i, idx_j] = J[i, j]
+            for idx_j, j in enumerate(network.J_place_indices):
+                full_J[idx_i, idx_j + N_ep] = J[i, j]
+        for idx_i, i in enumerate(network.J_place_indices):
+            for idx_j, j in enumerate(network.J_episode_indices):
+                full_J[idx_i + N_ep, idx_j] = J[i, j]
+            for idx_j, j in enumerate(network.J_place_indices):
+                full_J[idx_i + N_ep, idx_j + N_ep] = J[i, j]
+        plt.figure()
+        norm = mcolors.DivergingNorm(
+            vmin=full_J.min(), vmax = full_J.max(), vcenter=0
+            )
+        plt.imshow(full_J, cmap=plt.cm.coolwarm, norm=norm)
+        plt.show()
+
     def _make_main_grid(self, sim, f):
         """
         Fills the current PyPlot object with the basic visualization needed:

@@ -7,6 +7,9 @@ class Input(object):
     """
 
     J_samplerate = -1
+    nav_scale = 1.5
+    cache_scale = 1.2
+    ep_noise_std = 0.3
 
     def __init__(self):
         pass
@@ -49,6 +52,7 @@ class NavigationInput(Input):
             loc_t = ((self.t % period)/period)*(2*pi)
             input_t = np.zeros(self.network.num_units)
             input_t[self.network.J_place_indices] = self._get_sharp_cos(loc_t)
+            input_t[self.network.J_place_indices] *= self.nav_scale
             input_t[self.network.J_episode_indices] += np.random.normal(
                 0, 0.5, self.network.N_ep
                 )
@@ -93,6 +97,7 @@ class OneCacheInput(Input):
                 loc_t = (t*self.nav_speed) * 2*pi
                 input_t = np.zeros(self.network.num_units)
                 input_t[self.network.J_place_indices] += self._get_sharp_cos(loc_t)
+                input_t[self.network.J_place_indices] *= self.nav_scale
                 input_t[self.network.J_episode_indices] += np.random.normal(
                     0, self.ep_noise_std, self.network.N_ep
                     )
@@ -119,7 +124,7 @@ class OneCacheInput(Input):
         input_t[input_t < 0] = 0
         if t == self.cache_length - 1:
             self.caching = False
-        alpha_t = 1
+        alpha_t = self.cache_scale
         return input_t, alpha_t, fastlearn
 
 class MultiCacheInput(Input):
@@ -127,8 +132,8 @@ class MultiCacheInput(Input):
 
     def __init__(self, K_ep):
         self.t = 0
-        self.cache_length = 33
-        self.fastlearn_length = 4
+        self.cache_length = 100
+        self.fastlearn_length = 5
         self.navigation_length = self.cache_length*20
         self.module_length = self.cache_length + self.navigation_length
         self.cache_locs = [0, 2*pi/3, 4*pi/3]
@@ -136,7 +141,6 @@ class MultiCacheInput(Input):
         self.caching = True
         self.K_ep = K_ep
         self.T = self.module_length*2 + self.cache_length
-        self.ep_noise_std = 0.3
 
     def get_inputs(self):
         if self.t < self.T:
@@ -150,6 +154,7 @@ class MultiCacheInput(Input):
                 loc_t += prev_loc
                 input_t = np.zeros(self.network.num_units)
                 input_t[self.network.J_place_indices] += self._get_sharp_cos(loc_t)
+                input_t[self.network.J_place_indices] *= self.nav_scale
                 input_t[self.network.J_episode_indices] += np.random.normal(
                     0, self.ep_noise_std, self.network.N_ep
                     )
@@ -159,7 +164,6 @@ class MultiCacheInput(Input):
                 if (self.t + 1) % self.module_length == 0: self.caching = True
         else:
             raise StopIteration
-        alpha_t *= 2.
         self.inputs[self.t,:] = input_t
         self.alphas[self.t] = alpha_t
         self.t += 1
@@ -172,12 +176,12 @@ class MultiCacheInput(Input):
         input_t = np.zeros(self.network.num_units)
         input_t[self.network.J_episode_indices] = np.random.normal(
             0, self.ep_noise_std, self.network.N_ep
-            ) + 0.4#self.K_ep
+            ) + self.K_ep
         input_t[self.network.J_place_indices] += self._get_sharp_cos(cache_loc)
         if t > self.cache_length - self.fastlearn_length: # Fast learn
             fastlearn = True
         input_t[input_t < 0] = 0
-        alpha_t = 1.
+        alpha_t = self.cache_scale
         if t == self.cache_length - 1:
             self.caching = False
             self.cache_idx += 1
@@ -247,11 +251,10 @@ class BehavioralInput(Input):
         return event_end_times
 
     def _get_navigation_input(self, t):
-        nav_scale = 1.
         hop_length = self.to_frames(1./self.velocity)
         loc_t = 2*pi*((self.to_seconds(t)*self.velocity) % (16))/16
         velocity_modulation = self._get_velocity_modulation(hop_length, t)
-        place_input = self._get_sharp_cos(loc_t)*velocity_modulation*nav_scale
+        place_input = self._get_sharp_cos(loc_t)*velocity_modulation*self.nav_scale
         input_t = np.zeros(self.network.num_units)
         input_t[self.network.J_place_indices] = place_input
         input_t[input_t < 0] = 0
@@ -354,9 +357,8 @@ class PresentationInput(Input):
         return event_end_times
 
     def _get_navigation_input(self, t):
-        nav_scale = 1.
         loc_t = (self.to_seconds(t)*self.velocity) % (2*pi)
-        place_input = self._get_sharp_cos(loc_t)*nav_scale
+        place_input = self._get_sharp_cos(loc_t)*self.nav_scale
         input_t = np.zeros(self.network.num_units)
         input_t[self.network.J_place_indices] = place_input
         input_t[input_t < 0] = 0
@@ -370,8 +372,8 @@ class PresentationInput(Input):
     def _get_query_input(self, t):
         input_t = np.zeros(self.network.num_units)
         input_t[self.network.J_episode_indices] = np.random.normal(
-            0, 0.1, self.network.N_ep
-            ) + self.K_ep + 0.3
+            0, self.ep_noise_std, self.network.N_ep
+            ) + self.K_ep
         input_t[input_t < 0] = 0
-        alpha_t = 1.
+        alpha_t = self.cache_scale
         return input_t, alpha_t

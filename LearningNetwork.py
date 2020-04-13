@@ -61,7 +61,7 @@ class LearningNetwork(object):
     steps_in_s = (1/dt)*50
     kappa = 4. 
     vonmises_gain = 3.2
-    norm_scale = 3.
+    norm_scale = 4. #5 TODO
     isolated = False
 
     def __init__(
@@ -74,7 +74,7 @@ class LearningNetwork(object):
         self.K_ep = K_ep
         self.K_inhib = K_pl
         self.overlap = overlap
-        self.num_ep_modules = num_wta_modules
+        self.num_ep_modules = int(N_ep//13)#num_wta_modules
         self.num_pl_modules = num_wta_modules
         self.start_random = start_random
         self.J0 = self.base_J0/N_pl
@@ -118,7 +118,7 @@ class LearningNetwork(object):
                 alpha = 0
                 pl_only = False
         else:
-            alpha = 5e-2 if fastlearn else 3e-4
+            alpha = 8e-2 if fastlearn else 3e-4
             pl_only = False
         elapsed_t = prev_f.shape[1]
         window_size = 2000
@@ -126,10 +126,12 @@ class LearningNetwork(object):
             activity_window = np.sum(prev_f[:, -window_size:], axis=1)
         else:
             activity_window = np.sum(prev_f, axis=1)
-        inactive_units = np.argwhere(activity_window < 3)
+        inactive_units = np.argwhere(
+            activity_window/activity_window.size < 3/activity_window.size
+            )
         pre = prev_f[:, -1]
         post = f_t
-        threshold = 0.3#self.K_pl
+        threshold = 0.3 #self.K_pl
         pre = pre - threshold
         post = post - threshold 
         pre[np.abs(pre) < 1e-10] = 0
@@ -206,10 +208,11 @@ class LearningNetwork(object):
         J_place_indices = np.zeros(self.N_pl).astype(int)
         J_idx = 0
 
+        iw = 1.75
         # Fill in unshared episode network connectivity matrix
         wta_weight = 1.
         wta_excit = wta_weight/(self.N_ep//self.num_ep_modules)
-        wta_inhib = -wta_weight/(self.N_ep - self.N_ep//self.num_ep_modules)
+        wta_inhib = -iw*wta_weight/(self.N_ep - self.N_ep//self.num_ep_modules)
         for m_i in range(self.num_ep_modules):
             module = self.ep_modules[m_i]
             for i in module:
@@ -225,7 +228,7 @@ class LearningNetwork(object):
         if start_wta:
             wta_weight = 1.
             wta_excit = wta_weight/(self.N_pl//self.num_pl_modules)
-            wta_inhib = -wta_weight/(self.N_pl - self.N_pl//self.num_pl_modules)
+            wta_inhib = -iw*wta_weight/(self.N_pl - self.N_pl//self.num_pl_modules)
             for m_i in range(self.num_pl_modules):
                 module = self.pl_modules[m_i]
                 for i in module:

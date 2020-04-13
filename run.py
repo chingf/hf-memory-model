@@ -102,28 +102,31 @@ def run_and_plot_endtoend(overlap=0.):
 
     #np.random.seed(0)
     N_pl = 104
-    N_ep = 104
+    N_ep = 104 #+ 13*5 TODO
     K_pl = K_ep = 0.6
     network = LearningNetwork(
         N_pl=N_pl, N_ep=N_ep, K_pl=K_pl, K_ep=K_ep, overlap=overlap,
         num_wta_modules=8, start_random=False, start_wta=True
         )
-
-    inputgen = NavigationInput(T=14000)
+    inputgen = NavigationInput(T=10000)
     sim1 = Simulator(network, inputgen)
     pm.plot_J(sim1)
     m, f = sim1.simulate()
+    sim1.m = m
+    sim1.f = f
     pm.plot_main(sim1, f)
     pm.plot_J(sim1)
 
     inputgen = OneCacheInput(K_ep=K_ep)
     sim2 = Simulator(network, inputgen)
     m, f = sim2.simulate()
+    sim2.m = m
+    sim2.f = f
     pm.plot_main(sim2, f)
     pm.plot_J(sim2)
 
     inputgen = PresentationInput(
-        pre_seed_locs=[pi/2, 3*pi/2], K_pl=K_pl, K_ep=K_ep
+        pre_seed_locs=[pi/4, 3*pi/2], K_pl=K_pl, K_ep=K_ep
         )
     sim3 = Simulator(network, inputgen)
     m, f = sim3.simulate()
@@ -148,7 +151,7 @@ def test_net(p):
     pm.plot_J(sim)
 
 def main():
-    for o in [0.3]:
+    for o in [0.3]: # TODO
         print("Overlap: %1.2f"%o)
         run_and_plot_endtoend(o)
 
