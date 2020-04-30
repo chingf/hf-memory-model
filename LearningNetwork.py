@@ -61,7 +61,7 @@ class LearningNetwork(object):
     steps_in_s = (1/dt)*50
     kappa = 4. 
     vonmises_gain = 3.2
-    norm_scale = 4. #5 TODO
+    norm_scale = 2.5 #5 TODO
     isolated = False
 
     def __init__(
@@ -127,7 +127,7 @@ class LearningNetwork(object):
         else:
             activity_window = np.sum(prev_f, axis=1)
         inactive_units = np.argwhere(
-            activity_window/activity_window.size < 3/activity_window.size
+            activity_window/activity_window.size < 3/2000
             )
         pre = prev_f[:, -1]
         post = f_t

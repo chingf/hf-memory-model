@@ -60,15 +60,15 @@ def run_and_plot_overlapnet(overlap=0.):
 def run_and_plot_learningring(overlap=0., network=None):
     """ Runs and plots a random network learning the ring structure. """
 
-    N = 100
-    K_inhib = 0.2
+    N = 104
+    K_inhib = 0.6
     if network is None:
-        network = IsolatedNetwork(N, K_inhib, "random")
+        network = IsolatedNetwork(N, K_inhib, "wta", 8)
     else:
         with open(network, "rb") as p:
             dic = pickle.load(p)
         network = dic["sim"].network
-    inputgen = NavigationInput(T=2000) # 13000
+    inputgen = NavigationInput(T=10000) # 13000
     sim = Simulator(network, inputgen)
     pm.plot_J(sim)
     m, f = sim.simulate()
@@ -102,13 +102,13 @@ def run_and_plot_endtoend(overlap=0.):
 
     #np.random.seed(0)
     N_pl = 104
-    N_ep = 104 #+ 13*5 TODO
-    K_pl = K_ep = 0.6
+    N_ep = 104
+    K_pl = K_ep = 0.6 #0.5 TODO
     network = LearningNetwork(
         N_pl=N_pl, N_ep=N_ep, K_pl=K_pl, K_ep=K_ep, overlap=overlap,
         num_wta_modules=8, start_random=False, start_wta=True
         )
-    inputgen = NavigationInput(T=10000)
+    inputgen = NavigationInput(T=22000) # 18000 TODO
     sim1 = Simulator(network, inputgen)
     pm.plot_J(sim1)
     m, f = sim1.simulate()
@@ -151,8 +151,8 @@ def test_net(p):
     pm.plot_J(sim)
 
 def main():
-    for o in [0.3]: # TODO
+    for o in [0.]: # TODO
         print("Overlap: %1.2f"%o)
-        run_and_plot_endtoend(o)
+        run_and_plot_learningring()
 
 main()
