@@ -1,6 +1,5 @@
 import numpy as np
 from math import pi
-from Network import OverlapNetwork
 from PlotMaker import PlotMaker
 from Input import *
 
@@ -15,14 +14,7 @@ class Simulator(object):
         inputgen: An Input object that generates inputs to be fed to network
     """
 
-    def __init__(self, network, inputgen):
-        self.network = network
-        self.inputgen = inputgen
-        self.inputgen.set_network(network)
-        self.J_samplerate = self.inputgen.J_samplerate
-        self.J_samples = []
-
-    def simulate(self):
+    def simulate(self, network, inputgen):
         """
         Simulates the behavior of the network over some period of time.
     
@@ -32,30 +24,32 @@ class Simulator(object):
             f (numpy array): Size (N,T) array of floats representing firing
                 rate of each unit at each time step.
         """
- 
-        m = np.zeros((self.network.num_units, self.inputgen.T)) # Current
-        f = np.zeros((self.network.num_units, self.inputgen.T)) # Firing rate
-        m0 = 0.1*np.random.normal(0, 1, self.network.num_units)
+
+        inputgen.set_network(network)
+        m = np.zeros((network.num_units, inputgen.T)) # Current
+        f = np.zeros((network.num_units, inputgen.T)) # Firing rate
+        inputs = np.zeros((network.num_units, inputgen.T)) # Input
+        m0 = 0.1*np.random.normal(0, 1, network.num_units)
         f0 = np.clip(m0, 0, 1)
         m0 = m0.reshape((-1, 1))
         f0 = f0.reshape((-1, 1))
         t = 0
         while True:
             try:
-                input_t, alpha_t, fastlearn = self.inputgen.get_inputs()
+                input_t, btsp = inputgen.get_inputs()
+                inputs[:, t] = input_t
             except StopIteration:
                 break
             if t == 0:
-                m_t, f_t = self.network.step(m0, f0, input_t, alpha_t, fastlearn)
+                m_t, f_t = network.step(inputs, m0, f0, btsp)
             else:
-                m_t, f_t = self.network.step(
-                    m[:, :t], f[:, :t], input_t, alpha_t, fastlearn
+                m_t, f_t = network.step(
+                    inputs[:, :t], m[:, :t], f[:, :t], btsp
                     )
-            if self.J_samplerate > 0 and t % self.J_samplerate == 0:
-                self.J_samples.append(self.network.J)
             m[:,t] = m_t
             f[:,t] = f_t
-            self.inputgen.set_current_activity(f_t)
+            inputgen.set_current_activity(f_t)
             t += 1
-            self.network.t += 1
-        return m, f
+            network.t += 1
+        return m, f, inputs
+
