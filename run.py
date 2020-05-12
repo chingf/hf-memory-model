@@ -9,9 +9,11 @@ from math import pi
 from math import sin
 from math import cos
 from PlotMaker import PlotMaker
-from FFNetwork import FFNetwork
+from MixedRNN import MixedRNN
+from HebbRNN import HebbRNN
+from BtspRNN import BtspRNN
 from Simulator import Simulator
-from Input import NavigationInput, EpisodeInput, TestFPInput
+from Input import NavigationInput, EpisodeInput, TestFPInput, AssocInput
 
 pm = PlotMaker()
 
@@ -37,17 +39,17 @@ def run_and_plot_nav():
     plt.show()
 
 def run_and_plot_ep(
-        btsp=0.75, noise_mean=0.1, noise_std=0.2,
-        J_mean=-0.1, J_std=0.3, btsp_scale=5
+        plasticity=0.75, noise_mean=0.1, noise_std=0.2,
+        J_mean=-0.1, J_std=0.3, plasticity_scale=5
         ):
     """ Runs and plots a random network learning the ring structure. """
 
     num_units = 200
     network = FFNetwork(
-        num_units=num_units, btsp_scale=btsp_scale, J_mean=J_mean, J_std=J_std
+        num_units=num_units, plasticity_scale=plasticity_scale, J_mean=J_mean, J_std=J_std
         )
     inputgen = EpisodeInput(
-        T=80, btsp=btsp, noise_mean=noise_mean, noise_std=noise_std
+        T=80, plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std
         )
     sim = Simulator()
     m, f, inputs = sim.simulate(network, inputgen)
@@ -57,7 +59,7 @@ def run_and_plot_ep(
         title="FR, Memory Formation 1\nSorted by Memory 1"
         )
     inputgen = EpisodeInput(
-        T=80, btsp=btsp, noise_mean=noise_mean, noise_std=noise_std
+        T=80, plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std
         )
     sim = Simulator()
     m, f, inputs = sim.simulate(network, inputgen)
@@ -69,7 +71,7 @@ def run_and_plot_ep(
     for _ in np.arange(2):
         for use_memory in np.arange(3):
             inputgen = TestFPInput(
-                T=80, btsp=btsp, noise_mean=noise_mean, noise_std=noise_std,
+                T=80, plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std,
                 use_memory=use_memory, memory_noise_std=0.02
                 )
             m, f, inputs = sim.simulate(network, inputgen)
@@ -81,25 +83,47 @@ def run_and_plot_ep(
     recall[recall <= 0] = 0
     recall[recall > 0] = 1
     print(np.sum(recall == mem)/recall.size)
-    import pdb; pdb.set_trace()
+
+def run_and_plot_assoc(
+        plasticity=0.75, noise_mean=0.1, noise_std=0.2,
+        J_mean=-0.1, J_std=0.3, plasticity_scale=5
+        ):
+    """ Runs and plots a random network learning the ring structure. """
+
+    network = HebbRNN(
+        N_pl=100, N_ep=100, J_mean=J_mean, J_std=J_std
+        )
+    inputgen = AssocInput(
+        plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std
+        )
+    sim = Simulator()
+    m, f, inputs = sim.simulate(network, inputgen)
+    plot_J(network, sort=1, title="J Matrix")
+    plot_formation(f, network, inputs, title="Navigation and Association")
+    inputgen = TestFPInput(
+        T=80, plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std,
+        memory_noise_std=0.02
+        )
+    m, f, inputs = sim.simulate(network, inputgen)
+    plot_formation(f, network, inputs, title="Recall")
 
 def gridsearch_ep():
-    def eval(btsp, noise_mean, noise_std, J_mean, J_std, btsp_scale):
+    def eval(plasticity, noise_mean, noise_std, J_mean, J_std, plasticity_scale):
         successes = 0
         num_iters = 40
         sim = Simulator()
         for _ in range(num_iters):
             num_units = 100
             network = FFNetwork(
-                num_units=num_units, btsp_scale=btsp_scale,
+                num_units=num_units, plasticity_scale=plasticity_scale,
                 J_mean=J_mean, J_std=J_std
                 )
             inputgen = EpisodeInput(
-                T=80, btsp=btsp, noise_mean=noise_mean, noise_std=noise_std
+                T=80, plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std
                 )
             m, f, inputs = sim.simulate(network, inputgen)
             inputgen = TestFPInput(
-                T=80, btsp=btsp, noise_mean=noise_mean, noise_std=noise_std
+                T=80, plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std
                 )
             m, f, inputs = sim.simulate(network, inputgen)
             memory = network.memories[0].copy()
@@ -127,20 +151,26 @@ def gridsearch_ep():
         "JMean": [], "JStd": [], "BTSPScale": [], "Score": []
         }
     for param in list(itertools.product(*params)):
-        btsp, noise_mean, noise_std, J_mean, J_std, btsp_scale = param
-        score = eval(btsp, noise_mean, noise_std, J_mean, J_std, btsp_scale)
-        eval_results["BTSP"].append(btsp)
+        plasticity, noise_mean, noise_std, J_mean, J_std, plasticity_scale = param
+        score = eval(plasticity, noise_mean, noise_std, J_mean, J_std, plasticity_scale)
+        eval_results["BTSP"].append(plasticity)
         eval_results["NoiseMean"].append(noise_mean)
         eval_results["NoiseStd"].append(noise_std)
         eval_results["JMean"].append(J_mean)
         eval_results["JStd"].append(J_std)
-        eval_results["BTSPScale"].append(btsp_scale)
+        eval_results["BTSPScale"].append(plasticity_scale)
         eval_results["Score"].append(score)
     with open("grideval.p", "wb") as f:
         pickle.dump(eval_results, f)
 
 def plot_J(network, sort=False, title=None):
-    J = network.J
+    J = network.J.copy()
+    if sort:
+        memory = network.memories[sort-1]
+        sorting = np.argsort(memory[network.J_ep_indices])
+        sorting = np.concatenate((sorting, network.J_pl_indices))
+        sorting = np.ix_(sorting, sorting)
+        J = J[sorting]
     gridspec.GridSpec(1, 10)
     plt.subplot2grid((1, 10), (0,0), rowspan=1, colspan=9)
     norm = mcolors.DivergingNorm(vmin=J.min(), vmax = J.max(), vcenter=0)
@@ -156,10 +186,12 @@ def plot_formation(f, network, inputs, sort=False, title=None):
         f = f[sorting, :]
         inputs = inputs[sorting,:]
         memory = np.expand_dims(memory[sorting], axis=1)
+    else:
+        memory = np.array([0])
 
     norm = mcolors.DivergingNorm(
         vmin=min(inputs.min(), memory.min()),
-        vmax=max(inputs.max(), f.max(), memory.max()), vcenter=0
+        vmax=max(inputs.max(), f.max(), memory.max()), vcenter=0.01
         )
     fig = plt.figure(figsize=(6,5))
     nrows = 2 
@@ -167,12 +199,13 @@ def plot_formation(f, network, inputs, sort=False, title=None):
     gridspec.GridSpec(nrows,ncols)
     plt.subplot2grid((nrows,ncols), (0,0), rowspan=1, colspan=9)
     plt.imshow(inputs, aspect="auto", cmap=plt.cm.coolwarm, norm=norm)
-    plt.subplot2grid((nrows,ncols), (0,9), rowspan=1, colspan=1)
-    plt.imshow(memory, cmap=plt.cm.coolwarm, norm=norm, aspect="auto")
     plt.subplot2grid((nrows,ncols), (1,0), rowspan=1, colspan=9)
     plt.imshow(f, aspect="auto", cmap=plt.cm.coolwarm, norm=norm)
-    plt.subplot2grid((nrows,ncols), (1,9), rowspan=1, colspan=1)
-    plt.imshow(memory, cmap=plt.cm.coolwarm, norm=norm, aspect="auto")
+    if sort:
+        plt.subplot2grid((nrows,ncols), (0,9), rowspan=1, colspan=1)
+        plt.imshow(memory, cmap=plt.cm.coolwarm, norm=norm, aspect="auto")
+        plt.subplot2grid((nrows,ncols), (1,9), rowspan=1, colspan=1)
+        plt.imshow(memory, cmap=plt.cm.coolwarm, norm=norm, aspect="auto")
     plt.suptitle(title)
     plt.show()
 
@@ -207,6 +240,6 @@ def plot_recall(f, network, inputs):
     plt.show()
 
 def main():
-    run_and_plot_ep()
+    run_and_plot_assoc()
 
 main()
