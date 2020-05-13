@@ -92,7 +92,7 @@ class HebbRNN(object):
             )
         print("Number of Plastic Synapses: %d"%np.sum(plastic_synapses))
         self.plasticity_history[plastic_synapses] = True
-        plt.plot(plasticity_change); plt.show()
+        plt.plot(plasticity_change); plt.title("Change in RNN weights");plt.show()
         plasticity_change = np.outer(plasticity_change, plasticity_change)
         plastic_synapses = np.ix_(plastic_synapses, plastic_synapses)
         plt.imshow(plasticity_change); plt.show()

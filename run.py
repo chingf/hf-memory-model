@@ -85,12 +85,12 @@ def run_and_plot_ep(
     print(np.sum(recall == mem)/recall.size)
 
 def run_and_plot_assoc(
-        plasticity=0.75, noise_mean=0.1, noise_std=0.2,
-        J_mean=-0.1, J_std=0.3, plasticity_scale=5
+        plasticity=0.25, noise_mean=0.1, noise_std=0.3,
+        J_mean=-0.1, J_std=0.3, plasticity_scale=2
         ):
     """ Runs and plots a random network learning the ring structure. """
 
-    network = HebbRNN(
+    network = MixedRNN(
         N_pl=100, N_ep=100, J_mean=J_mean, J_std=J_std
         )
     inputgen = AssocInput(
@@ -98,14 +98,17 @@ def run_and_plot_assoc(
         )
     sim = Simulator()
     m, f, inputs = sim.simulate(network, inputgen)
-    plot_J(network, sort=1, title="J Matrix")
-    plot_formation(f, network, inputs, title="Navigation and Association")
+    plot_J(network.J, network, sort=1, title="J Matrix")
+    plot_J(network.J_ext, network, sort=1, title="Read-In Matrix")
+    plot_formation(
+        f, network, inputs, sort=1, title="Navigation and Association"
+        )
     inputgen = TestFPInput(
         T=80, plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std,
         memory_noise_std=0.02
         )
     m, f, inputs = sim.simulate(network, inputgen)
-    plot_formation(f, network, inputs, title="Recall")
+    plot_formation(f, network, inputs, sort=1, title="Recall")
 
 def gridsearch_ep():
     def eval(plasticity, noise_mean, noise_std, J_mean, J_std, plasticity_scale):
@@ -163,8 +166,8 @@ def gridsearch_ep():
     with open("grideval.p", "wb") as f:
         pickle.dump(eval_results, f)
 
-def plot_J(network, sort=False, title=None):
-    J = network.J.copy()
+def plot_J(J, network, sort=False, title=None):
+    J = J.copy()
     if sort:
         memory = network.memories[sort-1]
         sorting = np.argsort(memory[network.J_ep_indices])
@@ -182,7 +185,8 @@ def plot_J(network, sort=False, title=None):
 def plot_formation(f, network, inputs, sort=False, title=None):
     if sort:
         memory = network.memories[sort-1].copy()
-        sorting = np.argsort(memory)
+        sorting = np.argsort(memory[network.J_ep_indices])
+        sorting = np.concatenate((sorting, network.J_pl_indices))
         f = f[sorting, :]
         inputs = inputs[sorting,:]
         memory = np.expand_dims(memory[sorting], axis=1)

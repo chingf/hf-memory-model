@@ -20,12 +20,12 @@ class MixedRNN(HebbRNN):
     """
 
     def __init__(
-        self, N_pl=100, N_ep=100, J_mean=-0.1, J_std=0.1, K_inhib=0.3,
+        self, N_pl=100, N_ep=100, J_mean=-0.1, J_std=0.1, K_inhib=0.2,
         plasticity_scale=0.4
         ):
 
         super().__init__(
-            self, N_pl=100, N_ep=100, J_mean=-0.1, J_std=0.1, K_inhib=0.3,
+            N_pl=100, N_ep=100, J_mean=-0.1, J_std=0.1, K_inhib=0.3,
             plasticity_scale=0.4
             )
         self.ext_memories = []
@@ -54,7 +54,7 @@ class MixedRNN(HebbRNN):
             plastic_synapses, np.logical_not(self.ext_plasticity_history)
             )
         self.ext_plasticity_history[plastic_synapses] = True
-        plt.plot(plasticity_change); plt.show()
+        plt.plot(plasticity_change); plt.title("Ext Synapse Change");plt.show()
         self.J_ext[plastic_synapses, :] = np.tile(
             plasticity_change, (np.sum(plastic_synapses), 1)
             )
@@ -64,7 +64,15 @@ class MixedRNN(HebbRNN):
         self.ext_plasticity_history = np.zeros(self.num_units).astype(bool)
 
     def _init_J_ext(self):
+#        self.J_ext = np.random.normal(
+#            loc=self.J_mean, scale=self.J_std,
+#            size=(self.num_units, self.num_units)
+#            )
         self.J_ext = np.random.normal(
-            loc=self.J_mean, scale=self.J_std, size=self.num_units
+            loc=0, scale=0.2,
+            size=(self.num_units, self.num_units)
             )
-
+        self.J_ext[np.ix_(self.J_pl_indices, self.J_pl_indices)] = np.diag(
+            np.ones(self.N_pl)
+            )
+        self.J_ext[np.ix_(self.J_pl_indices, self.J_ep_indices)] = 0

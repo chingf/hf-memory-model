@@ -155,7 +155,7 @@ class AssocInput(Input):
         self.K_inhib = network.K_inhib
         input_t = np.random.normal(
             self.noise_mean, self.noise_std, self.network.num_units
-            ) + self.K_inhib
+            )#+ self.K_inhib
         input_t[input_t < 0] = 0
         self.input_t = input_t
 
