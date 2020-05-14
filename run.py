@@ -1,5 +1,6 @@
 import pickle
 import itertools
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
@@ -85,30 +86,122 @@ def run_and_plot_ep(
     print(np.sum(recall == mem)/recall.size)
 
 def run_and_plot_assoc(
-        plasticity=0.25, noise_mean=0.1, noise_std=0.3,
-        J_mean=-0.1, J_std=0.3, plasticity_scale=2
-        ):
+    noise_mean=0., noise_std=0.2, J_mean=-0.1, J_std=0.3,
+    ext_plasticity=0.25, plasticity=0.3,
+    ext_plasticity_scale=0.3, plasticity_scale=0.4
+    ):
     """ Runs and plots a random network learning the ring structure. """
 
     network = MixedRNN(
-        N_pl=100, N_ep=100, J_mean=J_mean, J_std=J_std
-        )
-    inputgen = AssocInput(
-        plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std
+        N_pl=100, N_ep=100, J_mean=J_mean, J_std=J_std,
+        ext_plasticity_scale=ext_plasticity_scale, plasticity_scale=plasticity_scale
         )
     sim = Simulator()
+    inputgen = AssocInput(
+        noise_mean=noise_mean, noise_std=noise_std, cache_loc=pi,
+        ext_plasticity=ext_plasticity, plasticity=plasticity
+        )
     m, f, inputs = sim.simulate(network, inputgen)
     plot_J(network.J, network, sort=1, title="J Matrix")
     plot_J(network.J_ext, network, sort=1, title="Read-In Matrix")
     plot_formation(
-        f, network, inputs, sort=1, title="Navigation and Association"
+        f, network, inputs, sortby=network.memories[0],
+        title="Navigation and Association 1 (Sorted by RNN Memory)"
         )
+    inputgen = AssocInput(
+        noise_mean=noise_mean, noise_std=noise_std, cache_loc=2*pi,
+        ext_plasticity=ext_plasticity, plasticity=plasticity
+        )
+    m, f, inputs = sim.simulate(network, inputgen)
+    plot_J(network.J, network, sort=2, title="J Matrix")
+    plot_J(network.J_ext, network, sort=2, title="Read-In Matrix")
+    plot_formation(
+        f, network, inputs, sortby=network.memories[0],
+        title="Navigation and Association 2 (Sorted by RNN Memory)"
+        )
+    print("Single memory?")
+    print(eval_memory(network.memories[1]))
     inputgen = TestFPInput(
         T=80, plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std,
         memory_noise_std=0.02
         )
     m, f, inputs = sim.simulate(network, inputgen)
-    plot_formation(f, network, inputs, sort=1, title="Recall")
+    print("Network overlap for memory 1 with random recall:")
+    print(eval_recall(network.memories[0], f[:,-1].squeeze(), network))
+    plot_formation(
+        f, network, inputs, sortby=network.ext_memories[0],
+        title="Recall (Sorted by Readin Memory)"
+        )
+    print("Single recall?")
+    print(eval_random_recall(f[:,-1].squeeze(), network))
+
+    inputgen = TestFPInput(
+        T=80, plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std,
+        use_memory=network.memories[0], memory_noise_std=0.02
+        )
+    m, f, inputs = sim.simulate(network, inputgen)
+    print("Network overlap for memory 1 with rnn recall 1:")
+    print(eval_recall(network.memories[0], f[:,-1].squeeze(), network))
+    plot_formation(
+        f, network, inputs, sortby=network.memories[0],
+        title="Recall of Memory 1 (Sorted by RNN Memory)"
+        )
+    inputgen = TestFPInput(
+        T=80, plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std,
+        use_memory=network.ext_memories[0], memory_noise_std=0.02
+        )
+    m, f, inputs = sim.simulate(network, inputgen)
+    print("Network overlap for memory 1 with readin recall 1:")
+    print(eval_recall(network.ext_memories[0], f[:,-1].squeeze(), network))
+    plot_formation(
+        f, network, inputs, sortby=network.memories[0],
+        title="Recall of Memory 1 (Sorted by Readin Memory)"
+        )
+
+    inputgen = TestFPInput(
+        T=80, plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std,
+        use_memory=network.memories[1], memory_noise_std=0.02
+        )
+    m, f, inputs = sim.simulate(network, inputgen)
+    print("Network overlap for memory 1 with rnn recall 2:")
+    print(eval_recall(network.memories[1], f[:,-1].squeeze(), network))
+    plot_formation(
+        f, network, inputs, sortby=network.memories[1],
+        title="Recall of Memory 2 (Sorted by RNN Memory)"
+        )
+    inputgen = TestFPInput(
+        T=80, plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std,
+        use_memory=network.ext_memories[1], memory_noise_std=0.02
+        )
+    m, f, inputs = sim.simulate(network, inputgen)
+    print("Network overlap for memory 1 with readin recall 1:")
+    print(eval_recall(network.ext_memories[1], f[:,-1].squeeze(), network))
+    plot_formation(
+        f, network, inputs, sortby=network.memories[0],
+        title="Recall of Memory 1 (Sorted by Readin Memory)"
+        )
+    import pdb; pdb.set_trace()
+
+def eval_recall(memory, recall, network):
+    memory = memory.copy()
+    recall = recall.copy()
+    memory = memory[network.J_pl_indices]
+    recall = recall[network.J_pl_indices]
+    memory[memory <= 0] = 0
+    memory[memory > 0] = 1
+    recall[recall <= 0] = 0
+    recall[recall > 0] = 1
+    match = np.sum(recall == memory)/recall.size
+    return match
+
+def eval_memory(memory):
+    return np.sum(memory[145:155]) < 0.01
+
+def eval_random_recall(recall, network):
+    recall = recall[network.J_pl_indices]
+    recall_0 = np.sum(recall[45:55]) > 0
+    recall_1 = (np.sum(recall[-5:]) + np.sum(recall[:5])) > 0
+    return recall_0 != recall_1
 
 def gridsearch_ep():
     def eval(plasticity, noise_mean, noise_std, J_mean, J_std, plasticity_scale):
@@ -166,6 +259,103 @@ def gridsearch_ep():
     with open("grideval.p", "wb") as f:
         pickle.dump(eval_results, f)
 
+def gridsearch_assoc():
+    J_mean = -0.1
+    J_std = 0.3
+    def eval(
+        noise_mean, noise_std, plasticity_scale, ext_plasticity_scale,
+        plasticity, ext_plasticity, K_inhib, recall_scale
+        ):
+        successes = 0
+        num_iters = 20
+        sim = Simulator()
+        for _ in range(num_iters):
+            network = MixedRNN(
+                N_pl=100, N_ep=100, J_mean=J_mean, J_std=J_std,
+                ext_plasticity_scale=ext_plasticity_scale,
+                plasticity_scale=plasticity_scale, K_inhib=K_inhib
+                )
+            inputgen = AssocInput(
+                noise_mean=noise_mean, noise_std=noise_std, cache_loc=pi,
+                ext_plasticity=ext_plasticity, plasticity=plasticity
+                )
+            m, f, inputs = sim.simulate(network, inputgen)
+            inputgen = AssocInput(
+                noise_mean=noise_mean, noise_std=noise_std, cache_loc=2*pi,
+                ext_plasticity=ext_plasticity, plasticity=plasticity
+                )
+            m, f, inputs = sim.simulate(network, inputgen)
+            # Check that second memory has some kind of place memory
+            if np.sum(network.memories[1][network.J_pl_indices] > 0) < 2:
+                continue
+            # Check that second memory doesn't overlap with first
+            if not eval_memory(network.memories[1]):
+                continue
+            # Check that random recall doesn't recall both memories
+            inputgen = TestFPInput(
+                T=80, plasticity=plasticity, noise_mean=noise_mean,
+                noise_std=noise_std, recall_scale=recall_scale
+                )
+            m, f, inputs = sim.simulate(network, inputgen)
+            if not eval_random_recall(f[:,-1].squeeze(), network):
+                continue
+            # Check that memory noise std is what you want
+            inputgen = TestFPInput(
+                T=80, plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std,
+                use_memory=network.memories[0], memory_noise_std=0.02
+                )
+            m, f, inputs = sim.simulate(network, inputgen)
+            score_0 = eval_recall(network.memories[0], f[:,-1].squeeze(), network)
+            success_0 = (1 - score_0) < np.sum(network.memories[0]/network.memories[0].size)
+            inputgen = TestFPInput(
+                T=80, plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std,
+                use_memory=network.memories[1], memory_noise_std=0.02
+                )
+            m, f, inputs = sim.simulate(network, inputgen)
+            score_1 = eval_recall(network.memories[1], f[:,-1].squeeze(), network)
+            success_1 = (1 - score_1) < np.sum(network.memories[1]/network.memories[1].size)
+            is_success = False
+            if success_0 and success_1:
+                is_success = True
+            successes += 1 if is_success else 0
+        return successes/num_iters
+    params = [
+        [-0.1, 0, 0.1],
+        [0.2],
+        [0.3, 0.6, 0.9],
+        [0.3, 0.6, 0.9],
+        [0.25, 0.5, 0.75],
+        [0.25, 0.5, 0.75],
+        [0.2],
+        [2]
+        ]
+    eval_results = {
+        "NoiseMean": [], "NoiseStd": [], "HebbScale": [], "BTSPScale":[],
+        "HebbProb": [], "BTSPProb": [], "Inhib": [], "RecallScale": [],
+        "Score": []
+        }
+    param_idx = 0
+    for param in list(itertools.product(*params)):
+        if param_idx % 20 == 0:
+            print("On parameter set %d"%param_idx)
+        noise_mean, noise_std, plasticity_scale, ext_plasticity_scale, plasticity, ext_plasticity, K_inhib, recall_scale = param
+        score = eval(
+            noise_mean, noise_std, plasticity_scale, ext_plasticity_scale,
+            plasticity, ext_plasticity, K_inhib, recall_scale
+            )
+        eval_results["NoiseMean"].append(noise_mean)
+        eval_results["NoiseStd"].append(noise_std)
+        eval_results["HebbScale"].append(plasticity_scale)
+        eval_results["BTSPScale"].append(ext_plasticity_scale)
+        eval_results["HebbProb"].append(plasticity)
+        eval_results["BTSPProb"].append(ext_plasticity)
+        eval_results["Inhib"].append(K_inhib)
+        eval_results["RecallScale"].append(recall_scale)
+        eval_results["Score"].append(score)
+        param_idx += 1
+    with open("grideval_assoc.p", "wb") as f:
+        pickle.dump(eval_results, f)
+
 def plot_J(J, network, sort=False, title=None):
     J = J.copy()
     if sort:
@@ -182,9 +372,9 @@ def plot_J(J, network, sort=False, title=None):
         plt.title(title)
     plt.show()
 
-def plot_formation(f, network, inputs, sort=False, title=None):
-    if sort:
-        memory = network.memories[sort-1].copy()
+def plot_formation(f, network, inputs, sortby=False, title=None):
+    if sortby is not False:
+        memory = sortby.copy()
         sorting = np.argsort(memory[network.J_ep_indices])
         sorting = np.concatenate((sorting, network.J_pl_indices))
         f = f[sorting, :]
@@ -205,7 +395,7 @@ def plot_formation(f, network, inputs, sort=False, title=None):
     plt.imshow(inputs, aspect="auto", cmap=plt.cm.coolwarm, norm=norm)
     plt.subplot2grid((nrows,ncols), (1,0), rowspan=1, colspan=9)
     plt.imshow(f, aspect="auto", cmap=plt.cm.coolwarm, norm=norm)
-    if sort:
+    if sortby is not False:
         plt.subplot2grid((nrows,ncols), (0,9), rowspan=1, colspan=1)
         plt.imshow(memory, cmap=plt.cm.coolwarm, norm=norm, aspect="auto")
         plt.subplot2grid((nrows,ncols), (1,9), rowspan=1, colspan=1)
@@ -244,6 +434,6 @@ def plot_recall(f, network, inputs):
     plt.show()
 
 def main():
-    run_and_plot_assoc()
+    gridsearch_assoc()
 
 main()

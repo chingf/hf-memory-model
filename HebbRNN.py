@@ -43,7 +43,7 @@ class HebbRNN(object):
         self.t = 0
         self.memories = []
 
-    def step(self, inputs, prev_m, prev_f, plasticity):
+    def step(self, inputs, prev_m, prev_f, plasticity, ext_plasticity):
         """
         Steps the network forward one time step. Evolves the current network
         activity according to the defined first-order dynamics.
@@ -64,7 +64,7 @@ class HebbRNN(object):
         m_t = prev_m[:, -1] + self.dt*dmdt
         f_t = self._g(m_t)
         self._update_recurrent_synapses(inputs, prev_f, f_t, plasticity)
-        self._update_ext_synapses(inputs, prev_f, f_t, plasticity)
+        self._update_ext_synapses(inputs, prev_f, f_t, ext_plasticity)
         return m_t, f_t
 
     def _update_recurrent_synapses(self, inputs, prev_f, f_t, plasticity):
@@ -81,7 +81,9 @@ class HebbRNN(object):
         plasticity_change = np.sum(
             eligibility_trace*self.eligibility_kernel, axis=1
             )
-        plasticity_change = self._plasticity_g(plasticity_change)
+        plasticity_change = self._plasticity_g(
+            plasticity_change
+            )*self.plasticity_scale
         self.memories.append(plasticity_change)
         plastic_synapses = plasticity_change > 0
         plastic_synapses = np.logical_and(
@@ -90,13 +92,10 @@ class HebbRNN(object):
         plastic_synapses = np.logical_and(
             plastic_synapses, np.logical_not(self.plasticity_history)
             )
-        print("Number of Plastic Synapses: %d"%np.sum(plastic_synapses))
         self.plasticity_history[plastic_synapses] = True
-        plt.plot(plasticity_change); plt.title("Change in RNN weights");plt.show()
         plasticity_change = np.outer(plasticity_change, plasticity_change)
-        plastic_synapses = np.ix_(plastic_synapses, plastic_synapses)
-        plt.imshow(plasticity_change); plt.show()
-        self.J[plastic_synapses] = plasticity_change[plastic_synapses]
+        self.J[plastic_synapses,:] = plasticity_change[plastic_synapses,:]
+        self.J[:,plastic_synapses] = plasticity_change[:,plastic_synapses]
         np.fill_diagonal(self.J, 0)
         self.J = np.clip(self.J, -self.J_std*12, self.J_std*12)
 
@@ -104,7 +103,7 @@ class HebbRNN(object):
         pass
 
     def _set_plasticity_params(self):
-        eligibility_size = int(self.steps_in_s/5)
+        eligibility_size = int(self.steps_in_s/6)
         #eligibility_kernel = np.ones(eligibility_size)/eligibility_size
         eligibility_kernel = self._exponential(eligibility_size*2, tau=70)
         eligibility_kernel = eligibility_kernel[:eligibility_size]
@@ -133,7 +132,7 @@ class HebbRNN(object):
     def _plasticity_g(self, x):
         x = np.clip(x, 0, 1)
         x -= np.sum(x)/x.size
-        return x*self.plasticity_scale
+        return x
 
     def _exponential(self, M, tau):
         n = np.arange(M*2)

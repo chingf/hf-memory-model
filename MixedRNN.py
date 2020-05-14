@@ -20,18 +20,19 @@ class MixedRNN(HebbRNN):
     """
 
     def __init__(
-        self, N_pl=100, N_ep=100, J_mean=-0.1, J_std=0.1, K_inhib=0.2,
-        plasticity_scale=0.4
+        self, N_pl=100, N_ep=100, J_mean=-0.1, J_std=0.1, K_inhib=0.3,
+        ext_plasticity_scale=0.4, plasticity_scale=0.8
         ):
 
         super().__init__(
-            N_pl=100, N_ep=100, J_mean=-0.1, J_std=0.1, K_inhib=0.3,
-            plasticity_scale=0.4
+            N_pl=N_pl, N_ep=N_ep, J_mean=J_mean, J_std=J_std, K_inhib=K_inhib,
+            plasticity_scale=plasticity_scale
             )
         self.ext_memories = []
+        self.ext_plasticity_scale = ext_plasticity_scale
 
-    def _update_ext_synapses(self, inputs, prev_f, f_t, plasticity):
-        if plasticity == 0:
+    def _update_ext_synapses(self, inputs, prev_f, f_t, ext_plasticity):
+        if ext_plasticity == 0:
             return
         elapsed_t = prev_f.shape[1]
         if elapsed_t > self.eligibility_size:
@@ -44,17 +45,18 @@ class MixedRNN(HebbRNN):
         plasticity_change = np.sum(
             eligibility_trace*self.eligibility_kernel, axis=1
             )
-        plasticity_change = self._plasticity_g(plasticity_change)
-        self.ext_memories.append(plasticity_change)
+        plasticity_change = self._plasticity_g(
+            plasticity_change
+            )*self.ext_plasticity_scale
         plastic_synapses = plasticity_change > 0
         plastic_synapses = np.logical_and(
-            plastic_synapses, np.random.uniform(size=self.num_units) < plasticity
+            plastic_synapses, np.random.uniform(size=self.num_units) < ext_plasticity
             )
         plastic_synapses = np.logical_and(
             plastic_synapses, np.logical_not(self.ext_plasticity_history)
             )
         self.ext_plasticity_history[plastic_synapses] = True
-        plt.plot(plasticity_change); plt.title("Ext Synapse Change");plt.show()
+        self.ext_memories.append(plasticity_change)
         self.J_ext[plastic_synapses, :] = np.tile(
             plasticity_change, (np.sum(plastic_synapses), 1)
             )
