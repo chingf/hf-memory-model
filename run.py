@@ -88,7 +88,7 @@ def run_and_plot_ep(
 def run_and_plot_assoc(
     noise_mean=0., noise_std=0.2, J_mean=-0.1, J_std=0.3,
     ext_plasticity=0.25, plasticity=0.3,
-    ext_plasticity_scale=0.3, plasticity_scale=0.4
+    ext_plasticity_scale=0.3, plasticity_scale=0.5
     ):
     """ Runs and plots a random network learning the ring structure. """
 
@@ -97,8 +97,9 @@ def run_and_plot_assoc(
         ext_plasticity_scale=ext_plasticity_scale, plasticity_scale=plasticity_scale
         )
     sim = Simulator()
+    # Association 1
     inputgen = AssocInput(
-        noise_mean=noise_mean, noise_std=noise_std, cache_loc=pi,
+        noise_mean=noise_mean, noise_std=noise_std, cache_loc=2*pi/3,
         ext_plasticity=ext_plasticity, plasticity=plasticity
         )
     m, f, inputs = sim.simulate(network, inputgen)
@@ -108,8 +109,9 @@ def run_and_plot_assoc(
         f, network, inputs, sortby=network.memories[0],
         title="Navigation and Association 1 (Sorted by RNN Memory)"
         )
+    # Association 2
     inputgen = AssocInput(
-        noise_mean=noise_mean, noise_std=noise_std, cache_loc=2*pi,
+        noise_mean=noise_mean, noise_std=noise_std, cache_loc=4*pi/3,
         ext_plasticity=ext_plasticity, plasticity=plasticity
         )
     m, f, inputs = sim.simulate(network, inputgen)
@@ -121,6 +123,7 @@ def run_and_plot_assoc(
         )
     print("Single memory?")
     print(eval_memory(network.memories[1]))
+
     inputgen = TestFPInput(
         T=80, plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std,
         memory_noise_std=0.02
@@ -163,7 +166,7 @@ def run_and_plot_assoc(
         use_memory=network.memories[1], memory_noise_std=0.02
         )
     m, f, inputs = sim.simulate(network, inputgen)
-    print("Network overlap for memory 1 with rnn recall 2:")
+    print("Network overlap for memory 2 with rnn recall 2:")
     print(eval_recall(network.memories[1], f[:,-1].squeeze(), network))
     plot_formation(
         f, network, inputs, sortby=network.memories[1],
@@ -174,11 +177,11 @@ def run_and_plot_assoc(
         use_memory=network.ext_memories[1], memory_noise_std=0.02
         )
     m, f, inputs = sim.simulate(network, inputgen)
-    print("Network overlap for memory 1 with readin recall 1:")
+    print("Network overlap for memory 2 with readin recall 1:")
     print(eval_recall(network.ext_memories[1], f[:,-1].squeeze(), network))
     plot_formation(
         f, network, inputs, sortby=network.memories[0],
-        title="Recall of Memory 1 (Sorted by Readin Memory)"
+        title="Recall of Memory 2 (Sorted by Readin Memory)"
         )
     import pdb; pdb.set_trace()
 
@@ -434,6 +437,6 @@ def plot_recall(f, network, inputs):
     plt.show()
 
 def main():
-    gridsearch_assoc()
+    run_and_plot_assoc()
 
 main()

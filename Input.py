@@ -23,11 +23,11 @@ class Input(object):
 
         mu = 0
         kappa = 5
-        vonmises_gain = 1
+        vonmises_gain = 2.
         loc_idx = int(loc/(2*pi)*num_units)
         x = np.linspace(-pi, pi, num_units, endpoint=False)
         curve = np.exp(kappa*np.cos(x-mu))/(2*pi*np.i0(kappa))
-        curve -= np.max(curve)/2.
+        curve -= np.max(curve)/1.5
         curve *= vonmises_gain
         curve = np.roll(curve, loc_idx - num_units//2)
         return curve
@@ -147,11 +147,11 @@ class AssocInput(Input):
         self._set_task_params()
 
     def _set_task_params(self):
-        self.cache_length = 60
+        self.cache_length = 30
         self.nav_speed = 1/2000. # revolution/timesteps
         self.prev_loc = 0
         self.caching = False
-        self.cache_start = int((1/self.nav_speed)*self.cache_loc/(2*pi))
+        self.cache_start = int((2/self.nav_speed)*self.cache_loc/(2*pi))
         self.T = int(self.cache_start + self.cache_length*2 + 4000)
 
     def set_network(self, network):

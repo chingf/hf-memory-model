@@ -5,7 +5,7 @@ from math import pi
 class RingAttractorRNN(object):
     """ Ring attractor network parameterized by von Mises functions """
 
-    base_J0 = 1
+    base_J0 = 1.5
     base_J2 = 3.
     kappa = 5
     norm_scale = 8
