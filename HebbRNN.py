@@ -1,6 +1,6 @@
 import numpy as np
 from math import pi
-from sklearn.preprocessing import normalize
+from sklearn.preprocessing import normalize, MinMaxScaler
 import matplotlib.pyplot as plt
 from PlotMaker import PlotMaker
 from RingAttractorRNN import RingAttractorRNN
@@ -42,7 +42,9 @@ class HebbRNN(object):
         self.t = 0
         self.memories = []
 
-    def step(self, inputs, prev_m, prev_f, plasticity, ext_plasticity):
+    def step(
+        self, inputs, prev_m, prev_f, plasticity, ext_plasticity, inhib
+        ):
         """
         Steps the network forward one time step. Evolves the current network
         activity according to the defined first-order dynamics.
@@ -59,6 +61,12 @@ class HebbRNN(object):
         input_t = inputs[:, -1]
         h_ext = self.J_ext @ input_t
         total_input = self.J @ self._g(prev_m[:, -1]) + h_ext - self.K_inhib
+        if type(inhib) is float:
+            total_input -= inhib
+        if not inhib: # Lift inhibition from cache-tuned cells
+            #cache_tuned = np.sum(self.J_ext[:, :100]>0, axis=1).astype(bool)
+            #total_input[cache_tuned] += self.K_inhib
+            total_input += self.K_inhib
         dmdt = -prev_m[:, -1] + total_input
         m_t = prev_m[:, -1] + self.dt*dmdt
         f_t = self._g(m_t)
@@ -86,18 +94,25 @@ class HebbRNN(object):
             )
         plasticity_change = self._plasticity_g(
             plasticity_change
-            )*self.plasticity_scale - 0.2
+            )*self.plasticity_scale# - 0.1
         self.memories.append(plasticity_change)
-        plastic_synapses = plasticity_change > 0
+        plastic_synapses = plasticity_change > 0.04
         plastic_synapses = np.logical_and(
             plastic_synapses, np.random.uniform(size=self.num_units) < plasticity
             )
         plastic_synapses = np.logical_and(
             plastic_synapses, np.logical_not(self.plasticity_history)
             )
-        self.plasticity_history[plastic_synapses] = True
+        shared_synapses = np.logical_and(
+            plastic_synapses, self.plasticity_history
+            )
         plt.plot(plasticity_change); plt.title("RNN Eligibilities"); plt.show()
         plasticity_change = np.outer(plasticity_change, plasticity_change)
+        plasticity_change[np.ix_(shared_synapses, shared_synapses)] *= -1
+        plasticity_change = self._rescale(plasticity_change, -0.3, 0.3)
+        #plasticity_change[plasticity_change < 0] = -0.06
+        #plasticity_change[plasticity_change > 0] = 0.06
+        self.plasticity_history[plastic_synapses] = True
         plt.imshow(plasticity_change); plt.title("RNN Synapse Change"); plt.show()
         self.J[plastic_synapses,:] = plasticity_change[plastic_synapses,:]
         self.J[:,plastic_synapses] = plasticity_change[:,plastic_synapses]
@@ -107,7 +122,7 @@ class HebbRNN(object):
         pass
 
     def _set_plasticity_params(self):
-        eligibility_size = int(self.steps_in_s/7)
+        eligibility_size = int(self.steps_in_s/2) #TODO: was 7, then 3
         eligibility_kernel = self._exponential(eligibility_size*2, tau=70)
         eligibility_kernel = eligibility_kernel[:eligibility_size]
         self.eligibility_size = eligibility_size
@@ -134,7 +149,7 @@ class HebbRNN(object):
 
     def _plasticity_g(self, x):
         x = np.clip(x, 0, 1)
-        integral = np.sum(x) - 10*self.J_mean
+        integral = np.sum(x) + 10
         x -= integral/x.size
         return x
 
@@ -144,3 +159,13 @@ class HebbRNN(object):
         kernel = np.exp(-np.abs(n-center)/tau)
         kernel = kernel[:M]
         return kernel
+
+    def _rescale(self, arr, min_val, max_val):
+        def helper(_arr, _min_val, _max_val):
+            prev_range = _arr.max() - _arr.min()
+            new_range = _max_val - _min_val
+            return (((_arr - _arr.min())*new_range)/prev_range) + _min_val
+        arr = arr.copy()
+        arr[arr < 0] = helper(arr[arr<0], min_val, 0)
+        arr[arr > 0] = helper(arr[arr>0], 0, max_val)
+        return arr

@@ -36,17 +36,18 @@ class Simulator(object):
         t = 0
         while True:
             try:
-                input_t, plasticity, ext_plasticity = inputgen.get_inputs()
+                input_t, plasticity, ext_plasticity, inhib = inputgen.get_inputs()
                 inputs[:, t] = input_t
             except StopIteration:
                 break
             if t == 0:
                 m_t, f_t = network.step(
-                    inputs, m0, f0, plasticity, ext_plasticity
+                    inputs, m0, f0, plasticity, ext_plasticity, inhib
                     )
             else:
                 m_t, f_t = network.step(
-                    inputs[:, :t], m[:, :t], f[:, :t], plasticity, ext_plasticity
+                    inputs[:, :t], m[:, :t], f[:, :t],
+                    plasticity, ext_plasticity, inhib
                     )
             m[:,t] = m_t
             f[:,t] = f_t

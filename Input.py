@@ -18,16 +18,16 @@ class Input(object):
     def set_current_activity(self, f):
         self.f = f
 
-    def _get_sharp_cos(self, loc, num_units):
+    def _get_sharp_cos(
+        self, loc, num_units, kappa=5, vonmises_gain=6, curve_offset=1.2
+        ):
         """ Returns a sharp sinusoidal curve that drops off rapidly """
 
         mu = 0
-        kappa = 5
-        vonmises_gain = 2.
         loc_idx = int(loc/(2*pi)*num_units)
         x = np.linspace(-pi, pi, num_units, endpoint=False)
         curve = np.exp(kappa*np.cos(x-mu))/(2*pi*np.i0(kappa))
-        curve -= np.max(curve)/1.5
+        curve -= np.max(curve)/curve_offset #TODO: was 2
         curve *= vonmises_gain
         curve = np.roll(curve, loc_idx - num_units//2)
         return curve
@@ -97,7 +97,7 @@ class TestFPInput(EpisodeInput):
     """ Feeds in uncorrelated, random input to the place network. """
 
     def __init__(
-        self, T=80, plasticity=1., noise_mean=0, noise_std=0.75,
+        self, T=150, plasticity=1., noise_mean=0, noise_std=0.75,
         use_memory=False, memory_noise_std=0.2, recall_scale=2
         ):
         super().__init__(
@@ -110,24 +110,96 @@ class TestFPInput(EpisodeInput):
     def get_inputs(self):
         if self.t < self.T:
             self.t += 1
+            inhib = True
             if self.use_memory is not False:
-                input_t = self.use_memory.copy()
-                input_t += np.random.normal(
-                    0, self.memory_noise_std, input_t.shape
-                    )
+                if self.t < self.T/3:
+                    input_t = self.use_memory.copy()
+                else:
+                    input_t = self.use_memory.copy() 
+                    if self.t % 4 == 0:
+                        input_t[self.network.J_ep_indices] = (
+                            np.random.uniform(size=self.network.N_ep) < 0.15
+                            ).astype(float) * 0.5
+                    inhib = False
                 input_t[input_t < 0] = 0
             else:
                 input_t = np.zeros(self.network.num_units)
-                input_t[self.network.J_ep_indices] = np.random.normal(
-                    self.noise_mean, self.noise_std, self.network.N_ep
-                    )
-                #input_t = self.input_t.copy()
+                if self.t % 4 == 0:
+                    input_t[self.network.J_ep_indices] = (
+                        np.random.uniform(size=self.network.N_ep) < 0.15
+                        ).astype(float) * 0.8
+                #input_t[self.network.J_ep_indices] = np.random.normal(
+                #    self.noise_mean, self.noise_std, self.network.N_ep
+                #    )
                 input_t[input_t < 0] = 0
-                input_t *= self.recall_scale
+                inhib = False
             plasticity = ext_plasticity = 0
-            return input_t, plasticity, ext_plasticity
+            return input_t, plasticity, ext_plasticity, inhib
         else:
             raise StopIteration
+
+class TestNavFPInput(Input):
+    """ Feeds in uncorrelated, random input to the place network. """
+
+    def __init__(self, recall_loc=125):
+        super().__init__()
+        self.recall_loc = ((recall_loc-100)/100)*(2*pi)
+        self.t = 0
+        self._set_task_params()
+
+    def _set_task_params(self):
+        self.recall_length = 600
+        self.nav_speed = 1/2000. # revolution/timesteps
+        self.recall = False
+        self.recall_start = int((1/self.nav_speed)*self.recall_loc/(2*pi))
+        self.recall_start += int(1/self.nav_speed)
+        self.T = int(self.recall_start + self.recall_length*2 + 4000)
+
+    def get_inputs(self):
+        if self.t < self.T:
+            if self.recall:
+                input_t, plasticity, ext_plasticity, inhib = self._get_recall_inputs()
+            else:
+                if self.t == self.recall_start:
+                    self.recall = True
+                input_t, plasticity, ext_plasticity, inhib = self._get_nav_inputs()
+            self.t += 1
+            return input_t, plasticity, ext_plasticity, inhib
+        else:
+            raise StopIteration
+
+    def _get_recall_inputs(self):
+        input_t = np.zeros(self.network.num_units)
+        if self.t % 4 == 0:
+            input_t[self.network.J_ep_indices] = (
+                np.random.uniform(size=self.network.N_ep) < 0.15
+                ).astype(float) * 0.5
+        inhib = False
+        plasticity = ext_plasticity = 0
+        recall_end = self.recall_start + self.recall_length
+        if self.t < self.recall_start + 200:
+            input_t[self.network.J_pl_indices] += self._get_sharp_cos(
+                self.recall_loc, self.network.N_pl,
+                vonmises_gain=5, curve_offset=3
+                )*0.2
+        if self.t > recall_end - self.recall_length/4:
+            inhib = 0.7
+        if self.t == recall_end - 1:
+            self.recall = False
+        input_t[input_t < 0] = 0
+        return input_t, plasticity, ext_plasticity, inhib
+
+    def _get_nav_inputs(self):
+        t = self.t
+        if t > self.recall_start:
+            t -= self.recall_length
+        loc_t = (t*self.nav_speed) * 2*pi
+        input_t = np.zeros(self.network.num_units)
+        input_t[self.network.J_pl_indices] += self._get_sharp_cos(
+            loc_t, self.network.N_pl
+            )
+        input_t[input_t < 0] = 0
+        return input_t, 0, 0, True
 
 class AssocInput(Input):
     """ Feeds in uncorrelated, random input to the place network. """
@@ -158,22 +230,20 @@ class AssocInput(Input):
         self.network = network
         self.f = np.zeros(network.num_units)
         self.K_inhib = network.K_inhib
-        input_t = np.random.normal(
-            self.noise_mean, self.noise_std, self.network.num_units
-            )#+ self.K_inhib
-        input_t[input_t < 0] = 0
+        input_t = (np.random.uniform(size=self.network.num_units) < 0.25).astype(float)
+        input_t *= 0.8
         self.input_t = input_t
 
     def get_inputs(self):
         if self.t < self.T:
             if self.caching:
-                input_t, plasticity, ext_plasticity = self._get_cache_inputs()
+                input_t, plasticity, ext_plasticity, inhib = self._get_cache_inputs()
             else:
                 if self.t == self.cache_start:
                     self.caching = True
-                input_t, plasticity, ext_plasticity = self._get_nav_inputs()
+                input_t, plasticity, ext_plasticity, inhib = self._get_nav_inputs()
             self.t += 1
-            return input_t, plasticity, ext_plasticity
+            return input_t, plasticity, ext_plasticity, inhib
         else:
             raise StopIteration
 
@@ -187,7 +257,7 @@ class AssocInput(Input):
             plasticity = ext_plasticity = 0
         input_t = self.input_t.copy()
         input_t[self.network.J_pl_indices] = 0
-        return input_t, plasticity, ext_plasticity
+        return input_t, plasticity, ext_plasticity, True
 
     def _get_nav_inputs(self):
         t = self.t
@@ -201,4 +271,4 @@ class AssocInput(Input):
         input_t[input_t < 0] = 0
         #input_t += np.random.normal(0, self.noise_std, input_t.shape)
         #input_t[input_t < 0] = 0
-        return input_t, 0, 0
+        return input_t, 0, 0, True

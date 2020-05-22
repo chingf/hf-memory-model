@@ -15,6 +15,7 @@ from HebbRNN import HebbRNN
 from BtspRNN import BtspRNN
 from Simulator import Simulator
 from Input import NavigationInput, EpisodeInput, TestFPInput, AssocInput
+from Input import TestNavFPInput
 
 pm = PlotMaker()
 
@@ -86,9 +87,9 @@ def run_and_plot_ep(
     print(np.sum(recall == mem)/recall.size)
 
 def run_and_plot_assoc(
-    noise_mean=0., noise_std=0.2, J_mean=-0.1, J_std=0.3,
-    ext_plasticity=0.25, plasticity=0.3,
-    ext_plasticity_scale=0.3, plasticity_scale=0.5
+    noise_mean=-0., noise_std=0.1, J_mean=-0.1, J_std=0.1,
+    ext_plasticity=1, plasticity=1,
+    ext_plasticity_scale=0.1, plasticity_scale=0.4
     ):
     """ Runs and plots a random network learning the ring structure. """
 
@@ -97,92 +98,93 @@ def run_and_plot_assoc(
         ext_plasticity_scale=ext_plasticity_scale, plasticity_scale=plasticity_scale
         )
     sim = Simulator()
+
     # Association 1
     inputgen = AssocInput(
         noise_mean=noise_mean, noise_std=noise_std, cache_loc=2*pi/3,
         ext_plasticity=ext_plasticity, plasticity=plasticity
         )
     m, f, inputs = sim.simulate(network, inputgen)
-    plot_J(network.J, network, sort=1, title="J Matrix")
-    plot_J(network.J_ext, network, sort=1, title="Read-In Matrix")
+    plot_J(network.J, network, sortby=network.memories[0], title="J Matrix")
+    plot_J(network.J, network, sortby=network.ext_memories[0], title="J Matrix")
+    plot_J(network.J_ext, network, sortby=network.memories[0], title="Read-In Matrix")
+    plot_J(network.J_ext, network, sortby=network.ext_memories[0], title="Read-In Matrix")
     plot_formation(
         f, network, inputs, sortby=network.memories[0],
         title="Navigation and Association 1 (Sorted by RNN Memory)"
         )
+    print(np.argwhere(network.ext_memories[0] > 0).squeeze())
+    print(np.argwhere(network.memories[0] > 0).squeeze())
+
     # Association 2
     inputgen = AssocInput(
         noise_mean=noise_mean, noise_std=noise_std, cache_loc=4*pi/3,
         ext_plasticity=ext_plasticity, plasticity=plasticity
         )
     m, f, inputs = sim.simulate(network, inputgen)
-    plot_J(network.J, network, sort=2, title="J Matrix")
-    plot_J(network.J_ext, network, sort=2, title="Read-In Matrix")
+    plot_J(network.J, network, sortby=network.memories[1], title="J Matrix")
+    plot_J(network.J_ext, network, sortby=network.memories[1], title="Read-In Matrix")
     plot_formation(
         f, network, inputs, sortby=network.memories[0],
         title="Navigation and Association 2 (Sorted by RNN Memory)"
         )
-    print("Single memory?")
-    print(eval_memory(network.memories[1]))
+    print(np.argwhere(network.ext_memories[1] > 0).squeeze())
+    print(np.argwhere(network.memories[1] > 0).squeeze())
 
+    # Random Recall
     inputgen = TestFPInput(
-        T=80, plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std,
+        plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std,
         memory_noise_std=0.02
         )
     m, f, inputs = sim.simulate(network, inputgen)
-    print("Network overlap for memory 1 with random recall:")
-    print(eval_recall(network.memories[0], f[:,-1].squeeze(), network))
     plot_formation(
         f, network, inputs, sortby=network.ext_memories[0],
         title="Recall (Sorted by Readin Memory)"
         )
-    print("Single recall?")
-    print(eval_random_recall(f[:,-1].squeeze(), network))
 
+    # Probe 1
+    probe = np.zeros(network.num_units)
+    probe[158:168] = 0.8
+    #probe = network.ext_memories[0]*2
+    #probe[100:] = 0
     inputgen = TestFPInput(
-        T=80, plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std,
-        use_memory=network.memories[0], memory_noise_std=0.02
+        plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std,
+        use_memory=probe, memory_noise_std=0.1
         )
     m, f, inputs = sim.simulate(network, inputgen)
-    print("Network overlap for memory 1 with rnn recall 1:")
-    print(eval_recall(network.memories[0], f[:,-1].squeeze(), network))
     plot_formation(
         f, network, inputs, sortby=network.memories[0],
         title="Recall of Memory 1 (Sorted by RNN Memory)"
         )
-    inputgen = TestFPInput(
-        T=80, plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std,
-        use_memory=network.ext_memories[0], memory_noise_std=0.02
-        )
-    m, f, inputs = sim.simulate(network, inputgen)
-    print("Network overlap for memory 1 with readin recall 1:")
-    print(eval_recall(network.ext_memories[0], f[:,-1].squeeze(), network))
     plot_formation(
-        f, network, inputs, sortby=network.memories[0],
-        title="Recall of Memory 1 (Sorted by Readin Memory)"
+        f, network, inputs, sortby=network.ext_memories[0],
+        title="Recall of Memory 1 (Sorted by Ext Memory)"
         )
 
-    inputgen = TestFPInput(
-        T=80, plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std,
-        use_memory=network.memories[1], memory_noise_std=0.02
-        )
-    m, f, inputs = sim.simulate(network, inputgen)
-    print("Network overlap for memory 2 with rnn recall 2:")
-    print(eval_recall(network.memories[1], f[:,-1].squeeze(), network))
-    plot_formation(
-        f, network, inputs, sortby=network.memories[1],
-        title="Recall of Memory 2 (Sorted by RNN Memory)"
-        )
-    inputgen = TestFPInput(
-        T=80, plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std,
-        use_memory=network.ext_memories[1], memory_noise_std=0.02
-        )
-    m, f, inputs = sim.simulate(network, inputgen)
-    print("Network overlap for memory 2 with readin recall 1:")
-    print(eval_recall(network.ext_memories[1], f[:,-1].squeeze(), network))
-    plot_formation(
-        f, network, inputs, sortby=network.memories[0],
-        title="Recall of Memory 2 (Sorted by Readin Memory)"
-        )
+    # Probe 2
+    probe_ranges = [
+        np.arange(125,133), np.arange(120, 128), np.arange(123, 131)
+        ]
+    for probe_range in probe_ranges:
+        probe = np.zeros(network.num_units)
+        probe[probe_range] = 0.8
+        #probe = network.ext_memories[1]*3
+        #probe[100:] = 0
+        inputgen = TestFPInput(
+            plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std,
+            use_memory=probe, memory_noise_std=0.05
+            )
+        m, f, inputs = sim.simulate(network, inputgen)
+        plot_formation(
+            f, network, inputs, sortby=network.memories[1],
+            title="Recall of Memory 2 (Sorted by RNN Memory)"
+            )
+        plot_formation(
+            f, network, inputs, sortby=network.ext_memories[1],
+            title="Recall of Memory 2 (Sorted by Ext Memory)"
+            )
+
+    test_navfp(network)
     import pdb; pdb.set_trace()
 
 def eval_recall(memory, recall, network):
@@ -359,10 +361,10 @@ def gridsearch_assoc():
     with open("grideval_assoc.p", "wb") as f:
         pickle.dump(eval_results, f)
 
-def plot_J(J, network, sort=False, title=None):
+def plot_J(J, network, sortby=False, title=None):
     J = J.copy()
-    if sort:
-        memory = network.memories[sort-1]
+    if sortby is not False:
+        memory = sortby.copy()
         sorting = np.argsort(memory[network.J_ep_indices])
         sorting = np.concatenate((sorting, network.J_pl_indices))
         sorting = np.ix_(sorting, sorting)
@@ -437,6 +439,50 @@ def plot_recall(f, network, inputs):
     plt.show()
 
 def main():
-    run_and_plot_assoc()
+    test_navfp()
+
+def test(): 
+    with open("btsphebb-5.p", "rb") as f:
+        network = pickle.load(f)
+    sim = Simulator()
+    locs = [125, 123, 121, 119]
+    for loc in locs:
+        mu = 0
+        kappa = 5
+        vonmises_gain = 8
+        x = np.linspace(-pi, pi, network.num_units, endpoint=False)
+        curve = np.exp(kappa*np.cos(x-mu))/(2*pi*np.i0(kappa))
+        curve -= np.max(curve)/1.1
+        curve *= vonmises_gain
+        probe = np.roll(curve, loc - network.num_units//2)
+        inputgen = TestFPInput(use_memory=probe)
+        m, f, inputs = sim.simulate(network, inputgen)
+        plot_formation(
+            f, network, inputs, sortby=network.memories[1],
+            title="Recall of Memory 2 (Sorted by RNN Memory)"
+            )
+        plot_formation(
+            m, network, inputs, sortby=network.memories[1],
+            title="Recall of Memory 2 (Sorted by RNN Memory)"
+            )
+
+def test_navfp(network=None):
+    if network is None:
+        with open("btsphebb-5.p", "rb") as f:
+            network = pickle.load(f)
+    sim = Simulator()
+    locs = [154]
+    plot_J(network.J, network, sortby=network.memories[1], title="J Matrix")
+    for loc in locs:
+        inputgen = TestNavFPInput(recall_loc=loc)
+        m, f, inputs = sim.simulate(network, inputgen)
+        plot_formation(
+            f, network, inputs, sortby=network.memories[1],
+            title="Recall of Memory 2 (Sorted by RNN Memory)"
+            )
+        plot_formation(
+            m, network, inputs, sortby=network.memories[1],
+            title="Recall of Memory 2 (Sorted by RNN Memory)"
+            )
 
 main()
