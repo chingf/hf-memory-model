@@ -94,7 +94,7 @@ def run_and_plot_assoc(
     """ Runs and plots a random network learning the ring structure. """
 
     network = MixedRNN(
-        N_pl=100, N_ep=100, J_mean=J_mean, J_std=J_std,
+        N_pl=100, N_ep=150, J_mean=J_mean, J_std=J_std,
         ext_plasticity_scale=ext_plasticity_scale, plasticity_scale=plasticity_scale
         )
     sim = Simulator()
@@ -106,12 +106,14 @@ def run_and_plot_assoc(
         )
     m, f, inputs = sim.simulate(network, inputgen)
     plot_J(network.J, network, sortby=network.memories[0], title="J Matrix")
-    plot_J(network.J, network, sortby=network.ext_memories[0], title="J Matrix")
-    plot_J(network.J_ext, network, sortby=network.memories[0], title="Read-In Matrix")
     plot_J(network.J_ext, network, sortby=network.ext_memories[0], title="Read-In Matrix")
     plot_formation(
         f, network, inputs, sortby=network.memories[0],
         title="Navigation and Association 1 (Sorted by RNN Memory)"
+        )
+    plot_formation(
+        f, network, inputs,
+        title="Navigation and Association 1 (Unsorted)"
         )
     print(np.argwhere(network.ext_memories[0] > 0).squeeze())
     print(np.argwhere(network.memories[0] > 0).squeeze())
@@ -141,48 +143,6 @@ def run_and_plot_assoc(
         f, network, inputs, sortby=network.ext_memories[0],
         title="Recall (Sorted by Readin Memory)"
         )
-
-    # Probe 1
-    probe = np.zeros(network.num_units)
-    probe[158:168] = 0.8
-    #probe = network.ext_memories[0]*2
-    #probe[100:] = 0
-    inputgen = TestFPInput(
-        plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std,
-        use_memory=probe, memory_noise_std=0.1
-        )
-    m, f, inputs = sim.simulate(network, inputgen)
-    plot_formation(
-        f, network, inputs, sortby=network.memories[0],
-        title="Recall of Memory 1 (Sorted by RNN Memory)"
-        )
-    plot_formation(
-        f, network, inputs, sortby=network.ext_memories[0],
-        title="Recall of Memory 1 (Sorted by Ext Memory)"
-        )
-
-    # Probe 2
-    probe_ranges = [
-        np.arange(125,133), np.arange(120, 128), np.arange(123, 131)
-        ]
-    for probe_range in probe_ranges:
-        probe = np.zeros(network.num_units)
-        probe[probe_range] = 0.8
-        #probe = network.ext_memories[1]*3
-        #probe[100:] = 0
-        inputgen = TestFPInput(
-            plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std,
-            use_memory=probe, memory_noise_std=0.05
-            )
-        m, f, inputs = sim.simulate(network, inputgen)
-        plot_formation(
-            f, network, inputs, sortby=network.memories[1],
-            title="Recall of Memory 2 (Sorted by RNN Memory)"
-            )
-        plot_formation(
-            f, network, inputs, sortby=network.ext_memories[1],
-            title="Recall of Memory 2 (Sorted by Ext Memory)"
-            )
 
     test_navfp(network)
     import pdb; pdb.set_trace()
@@ -439,7 +399,7 @@ def plot_recall(f, network, inputs):
     plt.show()
 
 def main():
-    test_navfp()
+    run_and_plot_assoc()
 
 def test(): 
     with open("btsphebb-5.p", "rb") as f:
@@ -470,19 +430,19 @@ def test_navfp(network=None):
     if network is None:
         with open("btsphebb-5.p", "rb") as f:
             network = pickle.load(f)
+        plot_J(network.J, network, sortby=network.memories[1], title="J Matrix")
     sim = Simulator()
-    locs = [154]
-    plot_J(network.J, network, sortby=network.memories[1], title="J Matrix")
+    locs = [20, 23, 25, 65, 68]
     for loc in locs:
-        inputgen = TestNavFPInput(recall_loc=loc)
+        inputgen = TestNavFPInput(recall_loc=loc, network=network)
         m, f, inputs = sim.simulate(network, inputgen)
         plot_formation(
             f, network, inputs, sortby=network.memories[1],
-            title="Recall of Memory 2 (Sorted by RNN Memory)"
+            title="Recall (Sorted by RNN Memory 2)"
             )
         plot_formation(
             m, network, inputs, sortby=network.memories[1],
-            title="Recall of Memory 2 (Sorted by RNN Memory)"
+            title="Recall, Membrane Potential (Sorted by RNN Memory 2)"
             )
 
 main()

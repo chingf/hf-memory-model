@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from PlotMaker import PlotMaker
 from RingAttractorRNN import RingAttractorRNN
 from HebbRNN import HebbRNN
+from Input import Input
 
 class MixedRNN(HebbRNN):
     """
@@ -48,8 +49,6 @@ class MixedRNN(HebbRNN):
         plasticity_change = self._plasticity_g(
             plasticity_change
             )*self.ext_plasticity_scale
-        #plasticity_change[plasticity_change < 0] = -0.1
-        #plasticity_change[plasticity_change > 0] = 0.1
         plasticity_change = self._rescale(plasticity_change, -0.2, 0.2)
         plt.plot(plasticity_change); plt.title("Ext Synapse Change"); plt.show()
         plastic_synapses = plasticity_change > 0
@@ -70,15 +69,14 @@ class MixedRNN(HebbRNN):
         self.ext_plasticity_history = np.zeros(self.num_units).astype(bool)
 
     def _init_J_ext(self):
-#        self.J_ext = np.random.normal(
-#            loc=self.J_mean, scale=self.J_std,
-#            size=(self.num_units, self.num_units)
-#            )
         self.J_ext = np.random.normal(
             loc=0, scale=0.2,
             size=(self.num_units, self.num_units)
             )
-        self.J_ext[np.ix_(self.J_pl_indices, self.J_pl_indices)] = np.diag(
-            np.ones(self.N_pl)
-            )
+        for pl in self.J_pl_indices:
+            loc = ((pl-self.N_ep)/self.N_pl)*2*pi
+            tuning = Input()._get_sharp_cos(loc=loc, num_units=self.N_pl)
+            tuning = self._plasticity_g(tuning)
+            tuning = self._rescale(tuning, -0.1, 0.1)
+            self.J_ext[pl, self.J_pl_indices] = tuning
         self.J_ext[np.ix_(self.J_pl_indices, self.J_ep_indices)] = 0

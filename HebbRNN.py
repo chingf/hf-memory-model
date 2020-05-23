@@ -94,7 +94,7 @@ class HebbRNN(object):
             )
         plasticity_change = self._plasticity_g(
             plasticity_change
-            )*self.plasticity_scale# - 0.1
+            )*self.plasticity_scale
         self.memories.append(plasticity_change)
         plastic_synapses = plasticity_change > 0.04
         plastic_synapses = np.logical_and(
@@ -104,14 +104,13 @@ class HebbRNN(object):
             plastic_synapses, np.logical_not(self.plasticity_history)
             )
         shared_synapses = np.logical_and(
-            plastic_synapses, self.plasticity_history
+            plasticity_change > 0, self.plasticity_history
             )
         plt.plot(plasticity_change); plt.title("RNN Eligibilities"); plt.show()
         plasticity_change = np.outer(plasticity_change, plasticity_change)
-        plasticity_change[np.ix_(shared_synapses, shared_synapses)] *= -1
-        plasticity_change = self._rescale(plasticity_change, -0.3, 0.3)
-        #plasticity_change[plasticity_change < 0] = -0.06
-        #plasticity_change[plasticity_change > 0] = 0.06
+        #plasticity_change[shared_synapses, :] = 0
+        #plasticity_change[:, shared_synapses] = 0
+        plasticity_change = self._rescale(plasticity_change, -0.2, 0.2)
         self.plasticity_history[plastic_synapses] = True
         plt.imshow(plasticity_change); plt.title("RNN Synapse Change"); plt.show()
         self.J[plastic_synapses,:] = plasticity_change[plastic_synapses,:]
@@ -123,8 +122,7 @@ class HebbRNN(object):
 
     def _set_plasticity_params(self):
         eligibility_size = int(self.steps_in_s/2) #TODO: was 7, then 3
-        eligibility_kernel = self._exponential(eligibility_size*2, tau=70)
-        eligibility_kernel = eligibility_kernel[:eligibility_size]
+        eligibility_kernel = self._exponential(eligibility_size, tau=15)*0.1
         self.eligibility_size = eligibility_size
         self.eligibility_kernel = eligibility_kernel
         self.plasticity_history = np.zeros(self.num_units).astype(bool)
@@ -139,7 +137,8 @@ class HebbRNN(object):
     def _init_J_ring(self):
         J_ring = RingAttractorRNN(num_units=self.N_pl).J
         self.J[-self.N_pl:, -self.N_pl:] = J_ring
-        #self.plasticity_history[-self.N_pl:] = True
+        self.plasticity_history[-self.N_pl:] = True
+        self.ext_plasticity_history[-self.N_pl:] = True
 
     def _init_J_ext(self):
         self.J_ext = np.diag(np.ones(self.num_units))
@@ -149,7 +148,7 @@ class HebbRNN(object):
 
     def _plasticity_g(self, x):
         x = np.clip(x, 0, 1)
-        integral = np.sum(x) + 10
+        integral = np.sum(x)
         x -= integral/x.size
         return x
 

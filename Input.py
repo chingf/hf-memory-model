@@ -19,7 +19,7 @@ class Input(object):
         self.f = f
 
     def _get_sharp_cos(
-        self, loc, num_units, kappa=5, vonmises_gain=6, curve_offset=1.2
+        self, loc, num_units, kappa=2.5, vonmises_gain=2, curve_offset=2
         ):
         """ Returns a sharp sinusoidal curve that drops off rapidly """
 
@@ -27,10 +27,20 @@ class Input(object):
         loc_idx = int(loc/(2*pi)*num_units)
         x = np.linspace(-pi, pi, num_units, endpoint=False)
         curve = np.exp(kappa*np.cos(x-mu))/(2*pi*np.i0(kappa))
-        curve -= np.max(curve)/curve_offset #TODO: was 2
+        #curve -= np.max(curve)/curve_offset #TODO: was 2
+        curve -= np.sum(curve)/curve.size
         curve *= vonmises_gain
         curve = np.roll(curve, loc_idx - num_units//2)
         return curve
+
+#import matplotlib.pyplot as plt
+#i = Input()
+#c = i._get_sharp_cos(loc=pi, num_units=100)
+#plt.plot(c);plt.axhline(0, color="gray");plt.show()
+#integral = np.sum(c) + 10
+#c -= integral/c.size
+#plt.plot(c);plt.axhline(0, color="gray");plt.show()
+#print(np.sum(c>0))
 
 class NavigationInput(Input):
     """ Feeds in navigation input to the place network. """
@@ -141,9 +151,9 @@ class TestFPInput(EpisodeInput):
 class TestNavFPInput(Input):
     """ Feeds in uncorrelated, random input to the place network. """
 
-    def __init__(self, recall_loc=125):
+    def __init__(self, recall_loc, network):
         super().__init__()
-        self.recall_loc = ((recall_loc-100)/100)*(2*pi)
+        self.recall_loc = (recall_loc/network.N_pl)*2*pi
         self.t = 0
         self._set_task_params()
 
@@ -177,12 +187,12 @@ class TestNavFPInput(Input):
         inhib = False
         plasticity = ext_plasticity = 0
         recall_end = self.recall_start + self.recall_length
-        if self.t < self.recall_start + 200:
+        if self.t < self.recall_start + 20:
             input_t[self.network.J_pl_indices] += self._get_sharp_cos(
                 self.recall_loc, self.network.N_pl,
                 vonmises_gain=5, curve_offset=3
                 )*0.2
-        if self.t > recall_end - self.recall_length/4:
+        if self.t > recall_end - self.recall_length/5:
             inhib = 0.7
         if self.t == recall_end - 1:
             self.recall = False
@@ -230,7 +240,7 @@ class AssocInput(Input):
         self.network = network
         self.f = np.zeros(network.num_units)
         self.K_inhib = network.K_inhib
-        input_t = (np.random.uniform(size=self.network.num_units) < 0.25).astype(float)
+        input_t = (np.random.uniform(size=self.network.num_units) < 0.3).astype(float)
         input_t *= 0.8
         self.input_t = input_t
 
