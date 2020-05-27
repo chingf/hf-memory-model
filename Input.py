@@ -29,7 +29,7 @@ class Input(object):
         curve = np.exp(kappa*np.cos(x-mu))/(2*pi*np.i0(kappa))
         #curve -= np.max(curve)/curve_offset #TODO: was 2
         curve -= np.sum(curve)/curve.size
-        curve *= vonmises_gain
+        curve *= 1.5#vonmises_gain
         curve = np.roll(curve, loc_idx - num_units//2)
         return curve
 
@@ -103,19 +103,30 @@ class EpisodeInput(Input):
         else:
             raise StopIteration
 
-class TestFPInput(EpisodeInput):
+class TestFPInput(Input):
     """ Feeds in uncorrelated, random input to the place network. """
 
     def __init__(
         self, T=150, plasticity=1., noise_mean=0, noise_std=0.75,
         use_memory=False, memory_noise_std=0.2, recall_scale=2
         ):
-        super().__init__(
-            T=T, plasticity=plasticity, noise_mean=noise_mean, noise_std=noise_std
-            )
+        self.T = T
+        self.t = 0
+        self.plasticity = plasticity
+        self.plasticity_induction_p = 0.05
+        self.noise_mean = noise_mean
+        self.noise_std = noise_std
         self.use_memory = use_memory
         self.memory_noise_std = memory_noise_std
         self.recall_scale = recall_scale
+
+    def set_network(self, network):
+        self.network = network
+        self.f = np.zeros(network.num_units)
+        self.K_inhib = network.K_inhib
+        input_t = (np.random.uniform(size=self.network.num_units) < 0.3).astype(float)
+        input_t *= 0.8
+        self.input_t = input_t
 
     def get_inputs(self):
         if self.t < self.T:
@@ -134,14 +145,9 @@ class TestFPInput(EpisodeInput):
                 input_t[input_t < 0] = 0
             else:
                 input_t = np.zeros(self.network.num_units)
-                if self.t % 4 == 0:
-                    input_t[self.network.J_ep_indices] = (
-                        np.random.uniform(size=self.network.N_ep) < 0.15
-                        ).astype(float) * 0.8
-                #input_t[self.network.J_ep_indices] = np.random.normal(
-                #    self.noise_mean, self.noise_std, self.network.N_ep
-                #    )
-                input_t[input_t < 0] = 0
+                if self.t < self.T/5:
+                    input_t = self.input_t.copy()
+                    input_t[self.network.J_pl_indices] = 0
                 inhib = False
             plasticity = ext_plasticity = 0
             return input_t, plasticity, ext_plasticity, inhib
@@ -156,6 +162,9 @@ class TestNavFPInput(Input):
         self.recall_loc = (recall_loc/network.N_pl)*2*pi
         self.t = 0
         self._set_task_params()
+        np.random.seed()
+        self.input_t = (np.random.uniform(size=network.num_units) < 0.25).astype(float)
+        np.random.seed(0)
 
     def _set_task_params(self):
         self.recall_length = 600
@@ -180,18 +189,23 @@ class TestNavFPInput(Input):
 
     def _get_recall_inputs(self):
         input_t = np.zeros(self.network.num_units)
-        if self.t % 4 == 0:
-            input_t[self.network.J_ep_indices] = (
-                np.random.uniform(size=self.network.N_ep) < 0.15
-                ).astype(float) * 0.5
+#        if self.t % 4 == 0:
+#            np.random.seed()
+#            input_t[self.network.J_ep_indices] = (
+#                np.random.uniform(size=self.network.N_ep) < 0.3
+#                ).astype(float) * 0.5
+#            np.random.seed(0)
         inhib = False
         plasticity = ext_plasticity = 0
         recall_end = self.recall_start + self.recall_length
-        if self.t < self.recall_start + 20:
+        if self.t < self.recall_start + 100:
             input_t[self.network.J_pl_indices] += self._get_sharp_cos(
                 self.recall_loc, self.network.N_pl,
-                vonmises_gain=5, curve_offset=3
-                )*0.2
+                )*0.1
+        if self.t < self.recall_start + 300:
+            input_t[self.network.J_ep_indices] = self.input_t[
+                self.network.J_ep_indices
+                ]*0.1
         if self.t > recall_end - self.recall_length/5:
             inhib = 0.7
         if self.t == recall_end - 1:

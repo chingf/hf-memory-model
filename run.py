@@ -111,12 +111,6 @@ def run_and_plot_assoc(
         f, network, inputs, sortby=network.memories[0],
         title="Navigation and Association 1 (Sorted by RNN Memory)"
         )
-    plot_formation(
-        f, network, inputs,
-        title="Navigation and Association 1 (Unsorted)"
-        )
-    print(np.argwhere(network.ext_memories[0] > 0).squeeze())
-    print(np.argwhere(network.memories[0] > 0).squeeze())
 
     # Association 2
     inputgen = AssocInput(
@@ -130,8 +124,6 @@ def run_and_plot_assoc(
         f, network, inputs, sortby=network.memories[0],
         title="Navigation and Association 2 (Sorted by RNN Memory)"
         )
-    print(np.argwhere(network.ext_memories[1] > 0).squeeze())
-    print(np.argwhere(network.memories[1] > 0).squeeze())
 
     # Random Recall
     inputgen = TestFPInput(
@@ -143,7 +135,11 @@ def run_and_plot_assoc(
         f, network, inputs, sortby=network.ext_memories[0],
         title="Recall (Sorted by Readin Memory)"
         )
-
+    ep_mem_0 = np.argwhere(network.memories[0][network.J_ep_indices] > 0).squeeze()
+    ep_mem_1 = np.argwhere(network.memories[1][network.J_ep_indices] > 0).squeeze()
+    print("Size of Memory 0`: %d"%np.sum(ep_mem_0 > 0))
+    print("Size of Memory 1`: %d"%np.sum(ep_mem_1 > 0))
+    print(np.intersect1d(ep_mem_0, ep_mem_1))
     test_navfp(network)
     import pdb; pdb.set_trace()
 
@@ -349,7 +345,7 @@ def plot_formation(f, network, inputs, sortby=False, title=None):
         memory = np.array([0])
 
     norm = mcolors.DivergingNorm(
-        vmin=min(inputs.min(), memory.min()),
+        vmin=min(inputs.min(), f.min(), memory.min()),
         vmax=max(inputs.max(), f.max(), memory.max()), vcenter=0.01
         )
     fig = plt.figure(figsize=(6,5))
@@ -399,7 +395,8 @@ def plot_recall(f, network, inputs):
     plt.show()
 
 def main():
-    run_and_plot_assoc()
+    #run_and_plot_assoc()
+    test_navfp()
 
 def test(): 
     with open("btsphebb-5.p", "rb") as f:
@@ -428,12 +425,14 @@ def test():
 
 def test_navfp(network=None):
     if network is None:
-        with open("btsphebb-5.p", "rb") as f:
+        with open("btsphebb2.p", "rb") as f:
             network = pickle.load(f)
-        plot_J(network.J, network, sortby=network.memories[1], title="J Matrix")
+        plot_J(network.J, network, sortby=network.memories[0], title="J Matrix")
     sim = Simulator()
-    locs = [20, 23, 25, 65, 68]
+    locs = [99 for _ in range(10)]
     for loc in locs:
+        print(loc)
+        np.random.seed(1)
         inputgen = TestNavFPInput(recall_loc=loc, network=network)
         m, f, inputs = sim.simulate(network, inputgen)
         plot_formation(

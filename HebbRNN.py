@@ -107,10 +107,12 @@ class HebbRNN(object):
             plasticity_change > 0, self.plasticity_history
             )
         plt.plot(plasticity_change); plt.title("RNN Eligibilities"); plt.show()
+        plasticity_change = self._rescale(
+            plasticity_change, -np.sqrt(0.2), np.sqrt(0.2))
         plasticity_change = np.outer(plasticity_change, plasticity_change)
         #plasticity_change[shared_synapses, :] = 0
         #plasticity_change[:, shared_synapses] = 0
-        plasticity_change = self._rescale(plasticity_change, -0.2, 0.2)
+        #plasticity_change = self._rescale(plasticity_change, -0.2, 0.2)
         self.plasticity_history[plastic_synapses] = True
         plt.imshow(plasticity_change); plt.title("RNN Synapse Change"); plt.show()
         self.J[plastic_synapses,:] = plasticity_change[plastic_synapses,:]
@@ -122,10 +124,12 @@ class HebbRNN(object):
 
     def _set_plasticity_params(self):
         eligibility_size = int(self.steps_in_s/2) #TODO: was 7, then 3
-        eligibility_kernel = self._exponential(eligibility_size, tau=15)*0.1
+        eligibility_kernel = self._exponential(eligibility_size, tau=10)*0.1
         self.eligibility_size = eligibility_size
         self.eligibility_kernel = eligibility_kernel
         self.plasticity_history = np.zeros(self.num_units).astype(bool)
+        import matplotlib.pyplot as plt
+        plt.plot(eligibility_kernel);plt.show()
 
     def _init_J(self):
         self.J = np.random.normal(
