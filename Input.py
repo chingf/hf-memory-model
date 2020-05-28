@@ -163,7 +163,7 @@ class TestNavFPInput(Input):
         self.t = 0
         self._set_task_params()
         np.random.seed()
-        self.input_t = (np.random.uniform(size=network.num_units) < 0.25).astype(float)
+        self.input_t = (np.random.uniform(size=network.num_units) < 0.15).astype(float)
         np.random.seed(0)
 
     def _set_task_params(self):
@@ -198,14 +198,14 @@ class TestNavFPInput(Input):
         inhib = False
         plasticity = ext_plasticity = 0
         recall_end = self.recall_start + self.recall_length
-        if self.t < self.recall_start + 100:
+        if self.t < self.recall_start + 200:
             input_t[self.network.J_pl_indices] += self._get_sharp_cos(
                 self.recall_loc, self.network.N_pl,
-                )*0.1
-        if self.t < self.recall_start + 300:
+                )*0.2
+#        if self.t < self.recall_start + 200:
             input_t[self.network.J_ep_indices] = self.input_t[
                 self.network.J_ep_indices
-                ]*0.1
+                ]*0.3
         if self.t > recall_end - self.recall_length/5:
             inhib = 0.7
         if self.t == recall_end - 1:
@@ -247,7 +247,8 @@ class AssocInput(Input):
         self.nav_speed = 1/2000. # revolution/timesteps
         self.prev_loc = 0
         self.caching = False
-        self.cache_start = int((2/self.nav_speed)*self.cache_loc/(2*pi))
+        self.cache_start = int((1/self.nav_speed)*self.cache_loc/(2*pi))
+        self.cache_start += 1/self.nav_speed
         self.T = int(self.cache_start + self.cache_length*2 + 4000)
 
     def set_network(self, network):
