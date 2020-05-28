@@ -88,7 +88,7 @@ def run_and_plot_ep(
 
 def run_and_plot_assoc(
     noise_mean=-0., noise_std=0.1, J_mean=-0.1, J_std=0.1,
-    ext_plasticity=0.6, plasticity=1,
+    ext_plasticity=1, plasticity=1,
     ext_plasticity_scale=0.1, plasticity_scale=0.4
     ):
     """ Runs and plots a random network learning the ring structure. """
@@ -409,9 +409,12 @@ def test():
 
 def test_navfp(network=None):
     if network is None:
-        with open("btsphebb3-1.p", "rb") as f:
+        with open("btsphebb2-1.p", "rb") as f:
             network = pickle.load(f)
-        plot_J(network.J, network, sortby=network.memories[0], title="J Matrix")
+        for memory in network.memories:
+            plot_J(network.J, network, sortby=memory, title="J Matrix")
+        for memory in network.ext_memories:
+            plot_J(network.J_ext, network, sortby=memory, title="Read-In Matrix")
     sim = Simulator()
     locs = [i*10 for i in np.arange(10)]
     for loc in locs:

@@ -198,11 +198,11 @@ class TestNavFPInput(Input):
         inhib = False
         plasticity = ext_plasticity = 0
         recall_end = self.recall_start + self.recall_length
-        if self.t < self.recall_start + 200:
+        if self.t < self.recall_start + 100:
             input_t[self.network.J_pl_indices] += self._get_sharp_cos(
                 self.recall_loc, self.network.N_pl,
                 )*0.2
-#        if self.t < self.recall_start + 200:
+        if self.t < self.recall_start + 200:
             input_t[self.network.J_ep_indices] = self.input_t[
                 self.network.J_ep_indices
                 ]*0.3
@@ -255,7 +255,7 @@ class AssocInput(Input):
         self.network = network
         self.f = np.zeros(network.num_units)
         self.K_inhib = network.K_inhib
-        input_t = (np.random.uniform(size=self.network.num_units) < 0.3).astype(float)
+        input_t = (np.random.uniform(size=self.network.num_units) < 0.25).astype(float)
         input_t *= 0.8
         self.input_t = input_t
 
