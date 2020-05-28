@@ -4,6 +4,7 @@ from sklearn.preprocessing import normalize, MinMaxScaler
 import matplotlib.pyplot as plt
 from PlotMaker import PlotMaker
 from RingAttractorRNN import RingAttractorRNN
+import warnings
 
 class HebbRNN(object):
     """
@@ -124,9 +125,10 @@ class HebbRNN(object):
 
     def _set_plasticity_params(self):
         eligibility_size = int(self.steps_in_s/2) #TODO: was 7, then 3
-        eligibility_kernel = self._exponential(eligibility_size, tau=10)*0.1
+        eligibility_kernel = self._exponential(eligibility_size, tau=20)*0.04
         self.eligibility_size = eligibility_size
         self.eligibility_kernel = eligibility_kernel
+        self.ext_eligibility_kernel = self._exponential(eligibility_size, tau=35)*0.01
         self.plasticity_history = np.zeros(self.num_units).astype(bool)
         import matplotlib.pyplot as plt
         plt.plot(eligibility_kernel);plt.show()
@@ -166,8 +168,11 @@ class HebbRNN(object):
     def _rescale(self, arr, min_val, max_val):
         def helper(_arr, _min_val, _max_val):
             prev_range = _arr.max() - _arr.min()
+            if prev_range == 0:
+                return np.ones(_arr.shape)*(_min_val+_max_val)
             new_range = _max_val - _min_val
-            return (((_arr - _arr.min())*new_range)/prev_range) + _min_val
+            standardized = (_arr - _arr.min())/prev_range
+            return standardized*new_range + _min_val
         arr = arr.copy()
         arr[arr < 0] = helper(arr[arr<0], min_val, 0)
         arr[arr > 0] = helper(arr[arr>0], 0, max_val)
