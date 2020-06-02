@@ -2,7 +2,6 @@ import numpy as np
 from math import pi
 from sklearn.preprocessing import normalize, MinMaxScaler
 import matplotlib.pyplot as plt
-from PlotMaker import PlotMaker
 from RingAttractorRNN import RingAttractorRNN
 import warnings
 
@@ -96,6 +95,8 @@ class HebbRNN(object):
         plasticity_change = self._plasticity_g(
             plasticity_change
             )*self.plasticity_scale
+        plasticity_change = self._rescale(
+            plasticity_change, -np.sqrt(0.2), np.sqrt(0.2))
         self.memories.append(plasticity_change)
         plastic_synapses = plasticity_change > 0.04
         plastic_synapses = np.logical_and(
@@ -108,8 +109,6 @@ class HebbRNN(object):
             plasticity_change > 0, self.plasticity_history
             )
         plt.plot(plasticity_change); plt.title("RNN Eligibilities"); plt.show()
-        plasticity_change = self._rescale(
-            plasticity_change, -np.sqrt(0.2), np.sqrt(0.2))
         plasticity_change = np.outer(plasticity_change, plasticity_change)
         #plasticity_change[shared_synapses, :] = 0
         #plasticity_change[:, shared_synapses] = 0

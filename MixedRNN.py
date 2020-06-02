@@ -2,7 +2,6 @@ import numpy as np
 from math import pi
 from sklearn.preprocessing import normalize
 import matplotlib.pyplot as plt
-from PlotMaker import PlotMaker
 from RingAttractorRNN import RingAttractorRNN
 from HebbRNN import HebbRNN
 from Input import Input
@@ -49,7 +48,7 @@ class MixedRNN(HebbRNN):
         plasticity_change = self._plasticity_g(
             plasticity_change
             )*self.ext_plasticity_scale
-        plasticity_change = self._rescale(plasticity_change, -0.08, 0.08)
+        plasticity_change = self._rescale(plasticity_change, -0.1, 0.1)
         plt.plot(plasticity_change); plt.title("Ext Synapse Change"); plt.show()
         plastic_synapses = plasticity_change > 0
         plastic_synapses = np.logical_and(

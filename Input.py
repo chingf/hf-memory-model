@@ -172,6 +172,8 @@ class TestNavFPInput(Input):
         self.recall = False
         self.recall_start = int((1/self.nav_speed)*self.recall_loc/(2*pi))
         self.recall_start += int(1/self.nav_speed)
+        self.recall_end = self.recall_start + self.recall_length
+        self.recall_inhib_start = self.recall_end - self.recall_length/5
         self.T = int(self.recall_start + self.recall_length*2 + 4000)
 
     def get_inputs(self):
@@ -189,15 +191,8 @@ class TestNavFPInput(Input):
 
     def _get_recall_inputs(self):
         input_t = np.zeros(self.network.num_units)
-#        if self.t % 4 == 0:
-#            np.random.seed()
-#            input_t[self.network.J_ep_indices] = (
-#                np.random.uniform(size=self.network.N_ep) < 0.3
-#                ).astype(float) * 0.5
-#            np.random.seed(0)
         inhib = False
         plasticity = ext_plasticity = 0
-        recall_end = self.recall_start + self.recall_length
         if self.t < self.recall_start + 100:
             input_t[self.network.J_pl_indices] += self._get_sharp_cos(
                 self.recall_loc, self.network.N_pl,
@@ -206,9 +201,9 @@ class TestNavFPInput(Input):
             input_t[self.network.J_ep_indices] = self.input_t[
                 self.network.J_ep_indices
                 ]*0.3
-        if self.t > recall_end - self.recall_length/5:
+        if self.t > self.recall_inhib_start:
             inhib = 0.7
-        if self.t == recall_end - 1:
+        if self.t == self.recall_end - 1:
             self.recall = False
         input_t[input_t < 0] = 0
         return input_t, plasticity, ext_plasticity, inhib

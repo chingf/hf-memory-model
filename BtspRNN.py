@@ -2,7 +2,6 @@ import numpy as np
 from math import pi
 from sklearn.preprocessing import normalize
 import matplotlib.pyplot as plt
-from PlotMaker import PlotMaker
 from HebbRNN import HebbRNN
 from RingAttractorRNN import RingAttractorRNN
 
