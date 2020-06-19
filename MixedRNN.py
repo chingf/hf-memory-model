@@ -47,9 +47,10 @@ class MixedRNN(HebbRNN):
             )
         plasticity_change = self._plasticity_g(
             plasticity_change
-            )*self.ext_plasticity_scale
-        plasticity_change = self._rescale(plasticity_change, -0.1, 0.1)
-        plt.plot(plasticity_change); plt.title("Ext Synapse Change"); plt.show()
+            )
+        scaling = self.ext_plasticity_scale
+        plasticity_change = self._rescale(plasticity_change, -scaling, scaling)
+        #plt.plot(plasticity_change); plt.title("Ext Synapse Change"); plt.show()
         plastic_synapses = plasticity_change > 0
         plastic_synapses = np.logical_and(
             plastic_synapses, np.random.uniform(size=self.num_units) < ext_plasticity

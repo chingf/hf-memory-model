@@ -80,21 +80,25 @@ class Simulator(object):
         locs = np.linspace(0, 2*pi, num_locs, endpoint=False)
         network = self.network
         P = np.zeros((num_locs, len(network.memories) + 1))
+        FR = [[] for _ in range(num_locs)]
         args = [(loc_idx, loc, iters) for loc_idx, loc in enumerate(locs)]
         pool = Pool(processes=5)
         pool_results = pool.starmap(self._eval_pool_func, args)
         pool.close()
         pool.join()
         for pool_result in pool_results:
-            loc_idx, P_i = pool_result
+            loc_idx, P_i, FR_i = pool_result
             P[loc_idx, :] = P_i
+            FR[loc_idx] = FR_i
         P = P/iters
-        return P
+        results = {"P": P, "FR": FR}
+        return results
 
     def _eval_pool_func(self, loc_idx, loc, iters):
         network = self.network
         loc = (loc/(2*pi))*network.N_pl
         P_i = np.zeros(len(network.memories) + 1)
+        FR_i = [[] for _ in range(len(network.memories) + 1)]
         for _ in range(iters):
             inputgen = TestNavFPInput(recall_loc=loc, network=network)
             m, f, inputs = self.simulate(inputgen)
@@ -103,21 +107,20 @@ class Simulator(object):
             recall_inhib_start = inputgen.recall_inhib_start
             recall_frames = np.arange(recall_start, recall_inhib_start).astype(int)
             recalled_mem = -1
+            recalled_mem_strength = -1
             for idx, memory in enumerate(network.memories):
                 binary_mem = memory.copy()
                 binary_mem[binary_mem > 0] = 1
                 binary_mem[binary_mem < 0] = -1
                 mem_support = np.sum(binary_mem > 0)
-                binary_recall = np.mean(f[:,recall_frames[-10:]], axis=1)
-                binary_recall[binary_recall > 0.001] = 1
-                recall_strength = np.sum(binary_mem*binary_recall)/mem_support
-                if recall_strength > 0.1:
+                recall_strength = np.mean(f[:,recall_frames[-10:]], axis=1)
+                binary_recall = recall_strength.copy()
+                binary_recall[recall_strength > 0.001] = 1
+                mem_match = np.sum(binary_mem*binary_recall)/mem_support
+                if mem_match > 0.1:
                     recalled_mem = idx
+                    recalled_mem_strength = np.mean(recall_strength[binary_mem > 0])
                     break
-                #print(recall_strength)
-                #plot_formation(
-                #    f, network, inputs, sortby=memory,
-                #    title="Recall (Sorted by RNN Memory %d)"%(idx+1)
-                #    )
             P_i[recalled_mem] += 1
-        return loc_idx, P_i
+            FR_i[recalled_mem].append(recalled_mem_strength)
+        return loc_idx, P_i, FR_i

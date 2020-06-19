@@ -107,15 +107,13 @@ class TestFPInput(Input):
     """ Feeds in uncorrelated, random input to the place network. """
 
     def __init__(
-        self, T=150, plasticity=1., noise_mean=0, noise_std=0.75,
+        self, T=150, plasticity=1.,
         use_memory=False, memory_noise_std=0.2, recall_scale=2
         ):
         self.T = T
         self.t = 0
         self.plasticity = plasticity
         self.plasticity_induction_p = 0.05
-        self.noise_mean = noise_mean
-        self.noise_std = noise_std
         self.use_memory = use_memory
         self.memory_noise_std = memory_noise_std
         self.recall_scale = recall_scale
@@ -162,18 +160,18 @@ class TestNavFPInput(Input):
         self.recall_loc = (recall_loc/network.N_pl)*2*pi
         self.t = 0
         self._set_task_params()
-        np.random.seed()
-        self.input_t = (np.random.uniform(size=network.num_units) < 0.15).astype(float)
-        np.random.seed(0)
+        #np.random.seed()
+        self.input_t = (np.random.uniform(size=network.num_units) < 0.2).astype(float)
+        #np.random.seed(0)
 
     def _set_task_params(self):
-        self.recall_length = 600
+        self.recall_length = 300
         self.nav_speed = 1/2000. # revolution/timesteps
         self.recall = False
         self.recall_start = int((1/self.nav_speed)*self.recall_loc/(2*pi))
         self.recall_start += int(1/self.nav_speed)
         self.recall_end = self.recall_start + self.recall_length
-        self.recall_inhib_start = self.recall_end - self.recall_length/5
+        self.recall_inhib_start = self.recall_end - 2
         self.T = int(self.recall_start + self.recall_length*2 + 4000)
 
     def get_inputs(self):
@@ -193,11 +191,11 @@ class TestNavFPInput(Input):
         input_t = np.zeros(self.network.num_units)
         inhib = False
         plasticity = ext_plasticity = 0
-        if self.t < self.recall_start + 100:
+        if self.t < self.recall_start + 70:
             input_t[self.network.J_pl_indices] += self._get_sharp_cos(
                 self.recall_loc, self.network.N_pl,
                 )*0.2
-        if self.t < self.recall_start + 200:
+        if self.t < self.recall_start + 70:
             input_t[self.network.J_ep_indices] = self.input_t[
                 self.network.J_ep_indices
                 ]*0.3
@@ -250,7 +248,9 @@ class AssocInput(Input):
         self.network = network
         self.f = np.zeros(network.num_units)
         self.K_inhib = network.K_inhib
-        input_t = (np.random.uniform(size=self.network.num_units) < 0.25).astype(float)
+        input_t = (
+            np.random.uniform(size=self.network.num_units) < 0.2
+            ).astype(float)
         input_t *= 0.8
         self.input_t = input_t
 
@@ -261,6 +261,98 @@ class AssocInput(Input):
             else:
                 if self.t == self.cache_start:
                     self.caching = True
+                input_t, plasticity, ext_plasticity, inhib = self._get_nav_inputs()
+            self.t += 1
+            return input_t, plasticity, ext_plasticity, inhib
+        else:
+            raise StopIteration
+
+    def _get_cache_inputs(self):
+        t = (self.t - self.cache_start) % self.cache_length
+        if t == self.cache_length - 1:
+            self.caching = False
+            plasticity = self.plasticity
+            ext_plasticity = self.ext_plasticity
+        else:
+            plasticity = ext_plasticity = 0
+        input_t = self.input_t.copy()
+        input_t[self.network.J_pl_indices] = 0
+        return input_t, plasticity, ext_plasticity, True
+
+    def _get_nav_inputs(self):
+        t = self.t
+        if t > self.cache_start:
+            t -= self.cache_length
+        loc_t = (t*self.nav_speed) * 2*pi
+        input_t = np.zeros(self.network.num_units)
+        input_t[self.network.J_pl_indices] += self._get_sharp_cos(
+            loc_t, self.network.N_pl
+            )
+        input_t[input_t < 0] = 0
+        #input_t += np.random.normal(0, self.noise_std, input_t.shape)
+        #input_t[input_t < 0] = 0
+        return input_t, 0, 0, True
+
+class ExperimentInput(object): #TODO
+    def __init__(
+        self, caching_start, caching_end,
+        retrieval_start, retrieval_end, theta
+        ):
+        self.caching_start = caching_start
+        self.caching_end = caching_end
+        self.retrieval_start = retrieval_start
+        self.retrieval_end = retrieval_end
+        self.theta = theta
+        self.num_caches = np.sum(t_mode == 1)
+        self._pad_thetas()
+        self._set_task_params()
+
+    def _pad_thetas(self):
+        new_theta = []
+        new_caching_end = []
+        new_retrieval_end = []
+        cache_idx = 0
+        retrieval_idx = 0
+        for idx in range(self.theta.size):
+            if idx in self.caching_start:
+                pass
+            pass
+
+    def _set_task_params(self):
+        self.cache_length = 30
+        self.retrieval_length = 600
+        self.nav_speed = 1/2000. # revolution/timesteps
+        self.t = 0
+        self.mode_start = 0
+        self.mode = 0
+        for idx in range(self.caching_start.size):
+            end = self.caching_end[idx]
+            start = self.caching_start[idx]
+            if end - start <= self.cache_length:
+                continue
+        self.T = self.theta.size
+
+    def set_network(self, network):
+        self.network = network
+        self.f = np.zeros(network.num_units)
+        self.K_inhib = network.K_inhib
+        cache_inputs = (
+            np.random.uniform(size=(self.num_caches, network.num_units)) < 0.2
+            ).astype(float)
+        input_t *= 0.8
+        self.cache_inputs = cache_inputs
+
+    def get_inputs(self):
+        if self.t < self.T:
+            if self.t in self.caching_start:
+                self.mode = 1; self.mode_start = self.t
+            elif self.t in self.retrieval_start:
+                self.mode = 2; self.mode_start = self.t
+            if self.mode == 1: #Caching
+                input_t, plasticity, ext_plasticity, inhib = self._get_cache_inputs()
+            elif self.mode == 2: #Retrieval
+                input_t, plasticity, ext_plasticity, inhib = self._get_retriev_inputs()
+            else:
                 input_t, plasticity, ext_plasticity, inhib = self._get_nav_inputs()
             self.t += 1
             return input_t, plasticity, ext_plasticity, inhib

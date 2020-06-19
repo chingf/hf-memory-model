@@ -88,33 +88,28 @@ class HebbRNN(object):
             eligibility_trace = np.pad(
                 prev_f[:,:elapsed_t], ((0,0),(pad_length, 0)), 'constant'
                 )
-        plt.imshow(eligibility_trace); plt.title("Pre-Convolution"); plt.show()
+        #plt.imshow(eligibility_trace); plt.title("Pre-Convolution"); plt.show()
         plasticity_change = np.sum(
             eligibility_trace*self.eligibility_kernel, axis=1
             )
         plasticity_change = self._plasticity_g(
             plasticity_change
-            )*self.plasticity_scale
+            )
+        scaling = self.plasticity_scale
         plasticity_change = self._rescale(
-            plasticity_change, -np.sqrt(0.2), np.sqrt(0.2))
+            plasticity_change, -scaling, scaling)
         self.memories.append(plasticity_change)
-        plastic_synapses = plasticity_change > 0.04
+        plastic_synapses = plasticity_change > 0 #0.04
         plastic_synapses = np.logical_and(
             plastic_synapses, np.random.uniform(size=self.num_units) < plasticity
             )
         plastic_synapses = np.logical_and(
             plastic_synapses, np.logical_not(self.plasticity_history)
             )
-        shared_synapses = np.logical_and(
-            plasticity_change > 0, self.plasticity_history
-            )
-        plt.plot(plasticity_change); plt.title("RNN Eligibilities"); plt.show()
+        #plt.plot(plasticity_change); plt.title("RNN Eligibilities"); plt.show()
         plasticity_change = np.outer(plasticity_change, plasticity_change)
-        #plasticity_change[shared_synapses, :] = 0
-        #plasticity_change[:, shared_synapses] = 0
-        #plasticity_change = self._rescale(plasticity_change, -0.2, 0.2)
         self.plasticity_history[plastic_synapses] = True
-        plt.imshow(plasticity_change); plt.title("RNN Synapse Change"); plt.show()
+        #plt.imshow(plasticity_change); plt.title("RNN Synapse Change"); plt.show()
         self.J[plastic_synapses,:] = plasticity_change[plastic_synapses,:]
         self.J[:,plastic_synapses] = plasticity_change[:,plastic_synapses]
         np.fill_diagonal(self.J, 0)
@@ -129,8 +124,6 @@ class HebbRNN(object):
         self.eligibility_kernel = eligibility_kernel
         self.ext_eligibility_kernel = self._exponential(eligibility_size, tau=35)*0.01
         self.plasticity_history = np.zeros(self.num_units).astype(bool)
-        import matplotlib.pyplot as plt
-        plt.plot(eligibility_kernel);plt.show()
 
     def _init_J(self):
         self.J = np.random.normal(
