@@ -61,7 +61,10 @@ class Simulator(object):
             network.t += 1
         return m, f, inputs
 
-    def eval(self, num_locs, iters):
+    def eval(
+        self, num_eval_locs, num_iters, multiprocess=True,
+        plot=False, shorten=True
+        ):
         """
         Evaluates network behavior by running memory retrieval on the network at
         various locations. Transient activation of a place cell is sufficent to
@@ -77,31 +80,42 @@ class Simulator(object):
                 represent the probability of no memories being recalled
         """
 
-        locs = np.linspace(0, 2*pi, num_locs, endpoint=False)
+        locs = np.linspace(0, 2*pi, num_eval_locs, endpoint=False)
         network = self.network
-        P = np.zeros((num_locs, len(network.memories) + 1))
-        FR = [[] for _ in range(num_locs)]
-        args = [(loc_idx, loc, iters) for loc_idx, loc in enumerate(locs)]
-        pool = Pool(processes=5)
-        pool_results = pool.starmap(self._eval_pool_func, args)
-        pool.close()
-        pool.join()
+        P = np.zeros((num_eval_locs, len(network.memories) + 1))
+        FR = [[] for _ in range(num_eval_locs)]
+        args = [
+            (loc_idx, loc, num_iters, plot, shorten) for loc_idx, loc in enumerate(locs)
+            ]
+        if multiprocess:
+            pool = Pool(processes=5)
+            pool_results = pool.starmap(self._eval_pool_func, args)
+            pool.close()
+            pool.join()
+        else:
+            pool_results = []
+            for arg in args:
+                pool_results.append(self._eval_pool_func(*arg))
         for pool_result in pool_results:
             loc_idx, P_i, FR_i = pool_result
             P[loc_idx, :] = P_i
             FR[loc_idx] = FR_i
-        P = P/iters
+        P = P/num_iters
         results = {"P": P, "FR": FR}
         return results
 
-    def _eval_pool_func(self, loc_idx, loc, iters):
+    def _eval_pool_func(self, loc_idx, loc, num_iters, plot, shorten):
         network = self.network
         loc = (loc/(2*pi))*network.N_pl
         P_i = np.zeros(len(network.memories) + 1)
         FR_i = [[] for _ in range(len(network.memories) + 1)]
-        for _ in range(iters):
-            inputgen = TestNavFPInput(recall_loc=loc, network=network)
+        for _ in range(num_iters):
+            inputgen = TestNavFPInput(recall_loc=loc, network=network, shorten=shorten)
             m, f, inputs = self.simulate(inputgen)
+            if plot:
+                plot_formation(
+                    f, network, inputs, sortby=network.memories[0], title="Recall"
+                    )
             memories = network.memories
             recall_start = inputgen.recall_start
             recall_inhib_start = inputgen.recall_inhib_start

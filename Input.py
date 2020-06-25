@@ -45,11 +45,11 @@ class Input(object):
 class NavigationInput(Input):
     """ Feeds in navigation input to the place network. """
 
-    def __init__(self, T=4000):
+    def __init__(self, T=8000):
         self.T = T
         self.t = 0
-        self.plasticity = 0.02
-        self.plasticity_induction_p = 0.005
+        self.plasticity = 0.05
+        self.plasticity_induction_p = 0.02
 
     def get_inputs(self):
         if self.t < self.T:
@@ -66,7 +66,7 @@ class NavigationInput(Input):
                 plasticity = self.plasticity
             else:
                 plasticity = 0
-            return input_t, plasticity 
+            return input_t, plasticity, plasticity, False #input_t, 0, 0, False
         else:
             raise StopIteration
 
@@ -155,9 +155,10 @@ class TestFPInput(Input):
 class TestNavFPInput(Input):
     """ Feeds in uncorrelated, random input to the place network. """
 
-    def __init__(self, recall_loc, network):
+    def __init__(self, recall_loc, network, shorten=False):
         super().__init__()
         self.recall_loc = (recall_loc/network.N_pl)*2*pi
+        self.shorten = shorten
         self.t = 0
         self._set_task_params()
         #np.random.seed()
@@ -169,10 +170,16 @@ class TestNavFPInput(Input):
         self.nav_speed = 1/2000. # revolution/timesteps
         self.recall = False
         self.recall_start = int((1/self.nav_speed)*self.recall_loc/(2*pi))
-        self.recall_start += int(1/self.nav_speed)
+        if self.shorten:
+            self.nav_start = 2*pi - 0.3*2*pi
+            self.recall_start += int(0.3/self.nav_speed)
+        else:
+            self.nav_start = 0
+            self.recall_start += 2000
         self.recall_end = self.recall_start + self.recall_length
         self.recall_inhib_start = self.recall_end - 2
-        self.T = int(self.recall_start + self.recall_length*2 + 4000)
+        self.T = int(self.recall_start + self.recall_length*2)
+        if not self.shorten: self.T += 2000
 
     def get_inputs(self):
         if self.t < self.T:
@@ -210,7 +217,7 @@ class TestNavFPInput(Input):
         t = self.t
         if t > self.recall_start:
             t -= self.recall_length
-        loc_t = (t*self.nav_speed) * 2*pi
+        loc_t = ((t*self.nav_speed) * 2*pi + self.nav_start) % (2*pi)
         input_t = np.zeros(self.network.num_units)
         input_t[self.network.J_pl_indices] += self._get_sharp_cos(
             loc_t, self.network.N_pl

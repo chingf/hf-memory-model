@@ -23,7 +23,7 @@ class HebbRNN(object):
 
     def __init__(
         self, N_pl=100, N_ep=100, J_mean=-0.1, J_std=0.1, K_inhib=0.3,
-        plasticity_scale=0.4
+        plasticity_scale=0.4, init_ring=True
         ):
 
         self.N_pl = N_pl
@@ -35,6 +35,7 @@ class HebbRNN(object):
         self.J_std = J_std
         self.K_inhib = K_inhib
         self.plasticity_scale = plasticity_scale
+        self.init_ring = init_ring
         self._set_plasticity_params()
         self._init_J()
         self._init_J_ring()
@@ -133,6 +134,7 @@ class HebbRNN(object):
         np.fill_diagonal(self.J, 0)
 
     def _init_J_ring(self):
+        if not self.init_ring: return
         J_ring = RingAttractorRNN(num_units=self.N_pl).J
         self.J[-self.N_pl:, -self.N_pl:] = J_ring
         self.plasticity_history[-self.N_pl:] = True

@@ -21,12 +21,12 @@ class MixedRNN(HebbRNN):
 
     def __init__(
         self, N_pl=100, N_ep=100, J_mean=-0.1, J_std=0.1, K_inhib=0.3,
-        ext_plasticity_scale=0.4, plasticity_scale=0.7
+        ext_plasticity_scale=0.4, plasticity_scale=0.7, init_ring=True
         ):
 
         super().__init__(
             N_pl=N_pl, N_ep=N_ep, J_mean=J_mean, J_std=J_std, K_inhib=K_inhib,
-            plasticity_scale=plasticity_scale
+            plasticity_scale=plasticity_scale, init_ring=init_ring
             )
         self.ext_memories = []
         self.ext_plasticity_scale = ext_plasticity_scale
@@ -73,10 +73,12 @@ class MixedRNN(HebbRNN):
             loc=0, scale=0.2,
             size=(self.num_units, self.num_units)
             )
-        for pl in self.J_pl_indices:
-            loc = ((pl-self.N_ep)/self.N_pl)*2*pi
-            tuning = Input()._get_sharp_cos(loc=loc, num_units=self.N_pl)
-            tuning = self._plasticity_g(tuning)
-            tuning = self._rescale(tuning, -0.1, 0.1)
-            self.J_ext[pl, self.J_pl_indices] = tuning
-        self.J_ext[np.ix_(self.J_pl_indices, self.J_ep_indices)] = 0
+        if self.init_ring:
+            for pl in self.J_pl_indices:
+                loc = ((pl-self.N_ep)/self.N_pl)*2*pi
+                tuning = Input()._get_sharp_cos(loc=loc, num_units=self.N_pl)
+                tuning = self._plasticity_g(tuning)
+                tuning = self._rescale(tuning, -0.1, 0.1)
+                self.J_ext[pl, self.J_pl_indices] = tuning
+            self.J_ext[np.ix_(self.J_pl_indices, self.J_ep_indices)] = 0
+
